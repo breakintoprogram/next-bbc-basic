@@ -98,7 +98,9 @@ Other than that, the source code is equivalent to the code originally authored b
 
 http://cowlark.com/2019-06-14-bbcbasic-opensource/index.html
 
-Any Spectrum Next specific code is clearly marked in z80 files prefixed with "next_". Any additions or modifications I have made to port this to the Next I have released under the same licensing terms as the original code and, when R.T.Russell's original source files need to be modified to accomodate this, the changes are clearly commented in the code.
+The bulk of the Spectrum Next specific code I've written can be found in the z80 files prefixed with "next_". I've clearly commented any changes made to R.T.Russell's original source files in the source code.
+
+Any additions or modifications I've made to port this to the Next have been released under the same licensing terms as the original code.
 
 Dean Belfield
 www.breakintoprogram.co.uk
