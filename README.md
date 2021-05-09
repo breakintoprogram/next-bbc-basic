@@ -34,9 +34,11 @@ Type is optional and will default to 0
 
 Like PUT, this takes an optional type parameter to read from NEXTREG registers
 
-###### PLOT mode,x,y
+###### PLOT type,x,y
 
-Currently just plots a point at screen positions X (0 to 255) and Y (0 to 191) on the ULA layer using the current graphics colour set by GCOL. Mode is ignored.
+Currently just plots a point at screen positions X (0 to 255) and Y (0 to 191) on the ULA layer using the current graphics colour and mode set by GCOL.
+
+Type is usually the plot type (relative, absolute, plot, line, etc), but is currently ignored. Only plotting points is supported at the moment.
 
 ###### COLOUR n
 
@@ -44,7 +46,11 @@ Sets the text colour. 0 to 7 sets the INK colour, 128 to 135 sets the PAPER colo
 
 ###### GCOL mode, colour
 
-Sets the graphic colour. INK and PAPER are set using the same values as the COLOUR command. Mode is currently ignored
+Sets the graphic colour. INK and PAPER are set using the same values as the COLOUR command. Mode is currently one of the following:
+- 0 and 1 set the pixel
+- 2 and 6 clear the pixel
+- 3 and 4 invert the pixel
+This is an attempt to stick to the BBC BASIC standard with 1-bit graphics
 
 ### STAR commands
 
