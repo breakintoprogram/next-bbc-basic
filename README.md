@@ -8,6 +8,18 @@ The original version of BBC Basic was written by Sophie Wilson at Acorn in 1981.
 
 R.T.Russell ported this to Z80, and this version has been ported to a number of Z80 based machines. [You can find a full history of BBC Basic on his website](http://www.bbcbasic.co.uk/bbcbasic/history.html).
 
+Whilst I love Sinclair BASIC, I feel that BBC Basic addresses many of its shortcomings, including the clunky editor, variable name limitations for strings and arrays, and performance.
+
+“Ah”, I hear you say. “I can load a BBC Micro Core in my Next to run BBC Basic”. Yes of course you can do that, and it is an excellent core. You will of course be restricted to BBC Model B hardware in doing so.
+
+The advantage of running BBC Basic native on the Next is that it can potentially take advantage of the Next’s advanced graphics and sound capabilities; hardware sprites, Layer 2 graphics, multiple AY chips, and of course the legendary 28Mhz Turbo mode.
+
+### The Challenges
+
+The foundation of this port is R.T.Russell's original BBC Basic for Z80 code (for CP/M), with the CP/M specific code stripped out. This foundation code is just pure BASIC interpreter with no graphics, sound or file I/O support.
+
+I will need to add all of that in, in a manner that befits both BBC Basic, and the features available to the Next that the language was not designed to handle, such as hardware sprites.
+
 ### Next Specific Modifications
 
 The Next version is near identical to the original language, with the following changes:
