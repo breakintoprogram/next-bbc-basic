@@ -3,10 +3,10 @@
 ;		Patch file for Spectrum Next
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	02/05/2021
+; Last Updated:	09/05/2021
 ;
 ; Modinfo:
-;
+; 09/05/2021:	Fixed plot mode and bug in COMDS table
 			
 			MODULE PATCH
 
@@ -323,11 +323,11 @@ AREA51:			CALL 	NEXT_DOS.Version
 ; Each command has bit 7 of the last character set, and is followed by the address of the handler
 ; It looks like these need to be in alphabetical orde
 ;
-COMDS:  		DC	'TEST': DEFW AREA51	; Test code call for debugging new functions
-			DC	'CAT':	DEFW CAT	; Catalogue SD Card
+COMDS:  		DC	'CAT':	DEFW CAT	; Catalogue SD Card
 			DC	'FX':	DEFW FX		; FX commands
 			DC	'MEMDUMP': DEFW MEMDUMP	; Mem dump
 			DC	'RUN':	DEFW RUN	; CPU speed
+			DC	'TEST': DEFW AREA51	; Test code call for debugging new functions
 			DEFB	0FFH
 
 ; PUT port,data[,type]
@@ -445,10 +445,15 @@ COMDS:  		DC	'TEST': DEFW AREA51	; Test code call for debugging new functions
 
 ; PLOT mode,x,y
 ;
-@PLOT:			CALL	EXPRI		; Get the mode - ignore for now
+@PLOT:			CALL	EXPRI		; Get the style (line, plot, etc)
 			EXX
+			PUSH	HL		
 			CALL	COMMA 
 			CALL	MOVE_1		; Get X and Y parameters
+			POP	HL		; Plot style in L
+			LD	B, A 		; Plot style in B
+			LD	A, (PLOT_MODE) 	
+			LD	C, A		; Plot mode in C
 			LD	A, (PLOT_COLOUR)
 			LD	DE, (PLOTPOS_X)
 			LD	HL, (PLOTPOS_Y)
