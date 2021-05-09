@@ -3,18 +3,33 @@
 ;		Spectrum Next Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	06/05/2021
-; Last Updated:	06/05/2021
+; Last Updated:	09/05/2021
 ;
 ; Modinfo:
-;
+; 09/05/2021:	Added Plot modes for Plot_ULA.
+;		Plot_ULA now takes scroll position into account
+
 			MODULE	NEXT_GRAPHICS 
 
 ; Plot a point
 ; HL: Y
 ; DE: X
 ;  A: Colour
+;  C: Mode:
 ;
-Plot:			LD	C, A 		; Store colour in C
+;     0: Plot the colour		4: NOT (invert) the screen colour
+;     1: OR with the screen colour	5: No change
+;     2: AND with the screen colour	6: Clear the colour (set to 0)
+;     3: XOR with the screen colour
+;     
+;     For ULA, 0 and 1 set the pixel, 2 and 6 clear the pixel and 3 and 4 invert the pixel
+;
+Plot:			LD	B, A 		; Store colour in B
+			LD	A, C 		; Check mode
+			CP	7 		; If >= 7 then
+			RET	NC 		; dont do anything
+			ADD	A, A 		; Multiply by 2 for indexing into lookup later
+			LD	C, A  		; Store back in C
 			LD	A, H		; Screen boundary check
 			OR	D
 			RET	NZ
@@ -23,32 +38,84 @@ Plot:			LD	C, A 		; Store colour in C
 			RET	NC
 			LD	A, (VIDEO_MODE)
 			OR	A 
-			JR	Z, Plot_ULA 
+			JR	Z, Plot_ULA 	; MODE 0
 			DEC	A 
-			JR	Z, Plot_L2
+			JR	Z, Plot_L2	; MODE 1
 			RET
-	
-Plot_ULA		LD	D, L		; D = Y, E = X
+
+; Plot the point on the ULA screen
+;	
+Plot_ULA		LD	A, (SCRLPOS_Y)	; Get Y scroll position
+			ADD	A, A
+			ADD	A, A 
+			ADD	A, A 		; Multiply by 8
+			ADD	A, L 		; Add to pixel Y position
+			JR	C, 0F 		; If we've wrapped, then skip
+			CP	192		; Gone off screen?
+			JR	C, 1F 
+0:			SUB	192
+1:			LD	D, A 		; D = Y, E = X
 			PIXELAD			; Get the pixel address in HL
-			LD	D,(HL)		; Get current contents of that address
-			SETAE			; Get pixel position in A
-			OR	D		; Or with screen
-			LD	(HL),A		; And store back in
-			LD	A, H 		; Get the attribute address from the screen address
+			SETAE			; Get pixel mask in A
+			EX	DE, HL		; DE: Screen address
+			LD	L, A 		;  L: Pixel mask
+			LD	A, C 		;  A: Plot mode * 2
+			LD	C, L 		;  C: Pixel mask
+			LD	HL, Plot_ULA_Table 
+			ADD	HL, A 
+			LD	A, (HL)
+			INC	HL
+			LD	H, (HL)
+			LD	L, A
+			JP	(HL) 
+
+Plot_ULA_OR:		EX	DE, HL
+			LD	A, (HL) 
+			OR	C		; Or with screen
+			LD	(HL), A
+			JR	Plot_ULA_Attribute
+
+Plot_ULA_AND:		EX	DE, HL 
+			LD	A, C
+			CPL 
+			AND	(HL)
+			LD	(HL), A 
+			JR	Plot_ULA_Attribute 
+
+Plot_ULA_XOR:		EX	DE, HL 
+			LD	A, (HL)
+			XOR	C 
+			LD	(HL), A
+			JR	Plot_ULA_Attribute 
+
+Plot_ULA_NOP:		RET
+
+; Plot table
+;
+Plot_ULA_Table:		DW	Plot_ULA_OR,  Plot_ULA_OR,  Plot_ULA_AND, Plot_ULA_XOR 
+			DW	Plot_ULA_XOR, Plot_ULA_NOP, Plot_ULA_AND 
+
+; Write colour value out to ULA attribute map
+; HL: Address in ULA pixel map
+;  B: Colour to write out
+;			
+Plot_ULA_Attribute:	LD	A, H 		; Get the attribute address from the screen address
 			RRA
 			RRA 
 			RRA 
 			AND 	3 
 			OR	88
 			LD	H, A 
-			LD	(HL), C		; Write the colour out
+			LD	(HL), B		; Write the colour out
 			RET
 
+; Plot the point on Layer 2
+;
 Plot_L2:		LD	D, L 		; D = Y, E = X
 			PUSH	BC
 			CALL	L2_Get_Pixel_Address
 			POP	BC
-			LD	(HL), C		; Write the colour out
+			LD	(HL), B		; Write the colour out
 			RET
 
 ; Get pixel position
