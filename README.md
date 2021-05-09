@@ -34,7 +34,7 @@ Sets the text colour. 0 to 7 sets the INK colour, 128 to 135 sets the PAPER colo
 
 Sets the graphic colour. INK and PAPER are set using the same values as the COLOUR command. Mode is currently ignored
 
-##### STAR commands
+### STAR commands
 
 ###### *RUN n
 Will set the turbo mode (0: 3.5Mhz, 1: 7Mhz, 2: 14Mhz, 3: 28Mhz)
@@ -52,6 +52,12 @@ List contents of memory - start and len are in hex
 The code is written to be assmbled by the SJASMPLUS assembler. Details of the toolchain I use [can be found here on my website](http://www.breakintoprogram.co.uk/computers/zx-spectrum-next/assembly-language/z80-development-toolchain).
 
 Please note that you will need to set the conditional assembly flag BUILD_EMULATOR to 1 if you are assembling this for ZEsarUX. It uses out-of-date register numbers for the ULA hardware scrolling.
+
+Every endeavour will be made to ensure the code is stable and will assemble, yet as this is a work-in-progress done in my spare time there will be instances where this is not the case. Please do not raise an issue in GIT, I'm more than likely aware of this!
+
+### Releases
+
+I'll dump significant updates as executable nex files in the releases folder
 
 ### License
 
