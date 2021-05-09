@@ -1,0 +1,110 @@
+;
+; Title:	BBC Basic Interpreter - Z80 version
+;		Spectrum Next Initialisation
+; Author:	Dean Belfield
+; Created:	04/05/2021
+; Last Updated:	04/05/2021
+;
+; Modinfo:
+;
+
+			MODULE	NEXT_INIT
+
+			DI
+			LD 	SP,Stack_Top		; Stick the stack somewhere safe for now
+
+			NEXTREG	0x04, 0x03		
+			NEXTREG 0x05, %01110001		; Peripheral 1 settings
+			NEXTREG 0x06, %10101000		; Peripheral 2 settings
+			NEXTREG 0x08, %10011110		; Peripheral 3 settings
+			NEXTREG	0x03, %10110011		; Machine type - Native Next/128K+3
+
+			NEXTREG 0x50, 0xFF		; MMU Slot 1 0x0000 - ROM
+			NEXTREG 0x51, 0xFF		; MMU Slot 2 0x2000 - ROM
+			NEXTREG 0x52, 0x0A		; MMU Slot 3 0x4000
+			NEXTREG 0x53, 0x0B		; MMU Slot 4 0x6000
+			NEXTREG 0x54, 0x04		; MMU Slot 5 0x8000
+			NEXTREG 0x55, 0x05		; MMU Slot 6 0xA000
+			NEXTREG 0x56, 0x0E		; MMU Slot 7 0xC000
+			NEXTREG 0x57, 0x0F		; MMU Slot 8 0xE000
+
+			NEXTREG 0x8C, 0x00		; Rom locking
+			NEXTREG	0x8F, 0x00		; Spectrum Next mapping mode
+
+			NEXTREG 0x12, 0x09		; Layer 2 RAM bank
+			NEXTREG 0x13, 0x09		; Layer 2 Shadow RAM bank
+
+			NEXTREG 0x07, 0x00		; CPU to 3.5Mhz
+
+			NEXTREG 0x43, %00010000		; Layer 2 to first palette
+			NEXTREG 0x40, 0			; Palette index 0
+;			NEXTREG	0x14, 0x00		; Global transparency colour
+;			NEXTREG 0x15, %00101001		; Enable sprites & clipping, SUL priority
+			NEXTREG 0x15, %00100001		; Enable sprites & clipping, SLU priority
+
+			Z80PORT	0x7FFD, 0x10		; Select ROM 1 (48K BASIC) + RAM 7 at 0xC000
+			Z80PORT 0x1FFD, 0x04		; Select ROM 1 & 3 (128K EDITOR, 48K BASIC)
+
+			CALL 	Initialise_Interrupt
+			LD	A, (TEXT_COLOUR)
+			AND	%00111000
+			RRA 
+			RRA 
+			RRA
+			OUT	(254), A
+			CALL	CLRSCN
+			CALL    TELL
+			DEFM	"Spectrum Next 0.01\n\r"
+			DEFM	"\n\r"
+			DEFB    0
+			JP	MAIN.COLD
+;
+; Interrupt routine
+;
+Initialise_Interrupt:   DI
+                        LD	DE, IM2_Table		; The IM2 vector table (on page boundary)
+                        LD	HL, IM2_JP              ; Pointer for 3-byte interrupt handler
+                        LD	A, D                    ; Interrupt table page high address
+                        LD	I, A                    ; Set the interrupt register to that page
+                        LD	A, L                    ; Fill page with values
+1:                      LD	(DE), A 
+                        INC	E
+                        JR	NZ, 1B
+                        INC	D                       ; In case data bus bit 0 is not 0, we
+                        LD	(DE), A                 ; put an extra byte in here
+                        LD	(HL), 0xC3              ; Write out the interrupt handler, a JP instruction
+                        INC	L
+                        LD	(HL), low Interrupt     ; Store the address of the interrupt routine in
+                        INC	L
+                        LD	(HL), high Interrupt
+                        IM	2                       ; Set the interrupt mode
+                        EI                              ; Enable interrupts
+                        RET
+
+Interrupt:		DI
+			PUSH	AF, BC, DE, HL, IX
+			EXX
+			EX 	AF,AF'
+			PUSH	AF, BC, DE, HL, IY
+
+			CALL	NEXT_IO.Read_Keyboard
+			LD	(KEYCODE), A
+
+			LD	DE, 2
+			LD	HL, (TIME + 0)
+			ADD	HL, DE
+			LD	(TIME + 0), HL
+			JR	NC, 1F
+			LD	HL, (TIME + 2)
+			INC	HL
+			LD	(TIME + 2), HL
+
+1:			POP	IY, HL, DE, BC, AF
+			EXX
+			EX	AF,AF'
+			POP	IX, HL, DE, BC, AF
+			EI
+			RET	
+
+			ENDMODULE
+	

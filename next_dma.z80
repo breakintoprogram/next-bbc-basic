@@ -1,0 +1,96 @@
+;
+; Title:	ZX Spectrum Next DMA Routines
+; Author:	Jim Bagley (c)
+; Link:		https://www.specnext.com/the-zxndma/
+; Modified By:	Dean Belfield
+; Created:	22/08/2020
+; Last Updated:	22/08/2020
+;
+; Requires:
+;
+; Modinfo:
+;
+; 22/08/2020:	Minor formatting changes, renamed some labels
+;
+
+DMA_RESET 			EQU 0xc3
+DMA_RESET_PORT_A_TIMING 	EQU 0xc7
+DMA_RESET_PORT_B_TIMING 	EQU 0xcb
+DMA_LOAD 			EQU 0xcf ; %11001111
+DMA_CONTINUE 			EQU 0xd3
+DMA_DISABLE_INTERUPTS 		EQU 0xaf
+DMA_ENABLE_INTERUPTS 		EQU 0xab
+DMA_RESET_DISABLE_INTERUPTS 	EQU 0xa3
+DMA_ENABLE_AFTER_RETI 		EQU 0xb7
+DMA_READ_STATUS_BYTE 		EQU 0xbf
+DMA_REINIT_STATUS_BYTE 		EQU 0x8b
+DMA_START_READ_SEQUENCE 	EQU 0xa7
+DMA_FORCE_READY 		EQU 0xb3
+DMA_DISABLE 			EQU 0x83
+DMA_ENABLE 			EQU 0x87
+DMA_WRITE_REGISTER_COMMAND 	EQU 0xbb
+DMA_BURST 			EQU %11001101
+DMA_CONTINUOUS 			EQU %10101101
+ZXN_DMA_PORT 			EQU 0x6b
+
+; Fill a block of memory using the DMA
+; DE: Destination
+; BC: Length
+;  A: Fill value
+;
+FillDMA:		DI
+			LD	(FillDMA_Value), A
+			LD	(FillDMA_Dest), DE
+			LD	(FillDMA_Length), BC
+			LD	HL, FillDMA_Code
+			LD	B, FillDMA_Code_Len
+			LD	C, ZXN_DMA_PORT
+			OTIR
+			EI
+			RET
+
+FillDMA_Value:		DB 0
+
+FillDMA_Code:		DB DMA_DISABLE
+			DB %01111101
+FillDMA_Souce:		DW FillDMA_Value
+FillDMA_Length:		DW 0
+			DB %00100100
+			DB %00010000
+			DB %10101101
+FillDMA_Dest:		DW 0
+			DB DMA_LOAD,DMA_ENABLE
+
+FillDMA_Code_Len:	EQU $-FillDMA_Code
+
+; Copy a block of memory using the DMA
+; HL: Source
+; DE: Destination
+; BC: Length
+;
+TransferDMA:		DI
+			LD 	(TransferDMA_Source), HL
+			LD 	(TransferDMA_Dest), DE
+			LD 	(TransferDMA_Length), BC
+			LD 	HL, TransferDMA_Code
+			LD 	B, TransferDMA_Code_Len
+			LD 	C, ZXN_DMA_PORT
+			OTIR
+			EI
+			RET
+
+TransferDMA_Code:	DB DMA_DISABLE
+			DB %01111101 		; R0-Transfer mode, A -> B, write address + block length
+TransferDMA_Source:	DW 0 			; R0-Port A, Start address (source address)
+TransferDMA_Length:	DW 0 			; R0-Block length (length in bytes)
+			DB %01010100 		; R1-write A time byte, increment, to memory, bitmask
+			DB %00000010 		; 2t
+			DB %01010000 		; R2-write B time byte, increment, to memory, bitmask
+			DB %00000010 		; R2-Cycle length port B
+			DB DMA_CONTINUOUS 	; R4-Continuous mode (use this for block transfer), write dest adress
+TransferDMA_Dest:	DW 0 			; R4-Dest address (destination address)
+			DB %10000010 		; R5-Restart on end of block, RDY active LOW
+			DB DMA_LOAD 		; R6-Load
+			DB DMA_ENABLE 		; R6-Enable DMA
+
+TransferDMA_Code_Len:	EQU $-TransferDMA_Code

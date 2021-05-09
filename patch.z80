@@ -1,0 +1,507 @@
+;
+; Title:	BBC Basic Interpreter - Z80 version
+;		Patch file for Spectrum Next
+; Author:	Dean Belfield
+; Created:	02/05/2021
+; Last Updated:	02/05/2021
+;
+; Modinfo:
+;
+			
+			MODULE PATCH
+
+; MODE n: Set video mode
+;
+@MODE:			CALL    EXPRI
+			EXX
+			LD	A, L
+			LD	(VIDEO_MODE), A
+			CALL 	@CLRSCN
+			JP	XEQ
+
+; CLRSCN: clears the screen.
+; CLG: clear the graphics screen
+;
+@CLG
+@CLRSCN:		PUSH	AF
+			PUSH	BC
+			PUSH	DE
+			PUSH	HL
+			LD	A,%00111000
+			CALL	NEXT_IO.Clear_Screen
+			LD	DE, 0
+			LD	HL, 0
+			CALL	PUTCSR
+			POP	HL
+			POP	DE
+			POP	BC
+			POP	AF
+			RET
+
+; PUTIME: set current time to DE:HL, in centiseconds.
+;
+@PUTIME:		LD	(TIME + 2), DE
+			LD	(TIME + 0), HL
+			RET
+
+; GETIME: return current time in DE:HL, in centiseconds.
+;
+@GETIME:		LD	DE, (TIME + 2)
+ 	  		LD	HL, (TIME + 0)
+			RET
+
+; PUTCSR: move to cursor to x=DE, y=HL
+;
+@PUTCSR:		PUSH	AF 
+			LD	A, E
+			LD	(CHARPOS_X), A 
+			LD	A, D 
+			LD	(CHARPOS_Y), A 
+			POP	AF
+			RET
+
+; GETCSR: return cursor position in x=DE, y=HL
+;
+@GETCSR:		PUSH	AF
+			LD	D, 0
+			LD	H, 0 
+			LD	A,(CHARPOS_X)
+			LD	E, A
+			LD 	A,(CHARPOS_Y)
+			LD	L, A
+			POP	AF
+			RET
+
+; OSRDCH: read a character in from the keyboard (non-blocking)
+;
+@OSRDCH:		LD	A, (KEYCODE)			; Wait for key to be released
+			AND	A 
+			JR	NZ, @OSRDCH
+1:			LD	A, (KEYCODE)			; And pressed again
+			AND	A 
+			JR	Z, 1B
+			RET
+
+; PROMPT: output the input prompt
+;
+@PROMPT: 		LD	A,'>'
+
+; OSWRCH: write a character out
+;
+@OSWRCH:		PUSH	AF
+			PUSH	BC
+			PUSH	DE
+			PUSH	HL
+			CALL	NEXT_IO.Print_Char
+			POP	HL
+			POP	DE
+			POP	BC
+			POP	AF
+			RET 
+
+;OSKEY - Read key with time-limit, test for ESCape.
+;Main function is carried out in user patch.
+;   Inputs: HL = time limit (centiseconds)
+;  Outputs: Carry reset if time-out
+;           If carry set A = character
+; Destroys: A,H,L,F
+;
+@OSKEY:			DEC	HL 
+			LD	A,H
+			OR	L
+			RET	Z 
+			CALL	OSRDCH
+			OR	A
+			JR	Z,OSKEY
+			CP	0x1B		; ESC
+			SCF 
+			RET	NZ
+ESCSET: 		PUSH    HL
+        		LD      HL,FLAGS
+        		BIT     6,(HL)          ; ESC DISABLED?
+        		JR      NZ,ESCDIS
+        		SET     7,(HL)          ; SET ESCAPE FLAG
+ESCDIS: 		POP     HL
+        		RET	
+ESCTEST:		LD	A, (KEYCODE)
+			CP	0x1B		; ESC	
+			JR	Z,ESCSET
+			RET
+
+@TRAP:			CALL	ESCTEST
+@LTRAP:			LD	A,(FLAGS)
+			OR	A
+			RET	P
+			LD	HL,FLAGS 
+			RES	7,(HL)
+			JP	ESCAPE
+
+;OSINIT - Initialise RAM mapping etc.
+;If BASIC is entered by BBCBASIC FILENAME then file
+;FILENAME.BBC is automatically CHAINed.
+;   Outputs: DE = initial value of HIMEM (top of RAM)
+;            HL = initial value of PAGE (user program)
+;            Z-flag reset indicates AUTO-RUN.
+;  Destroys: A,D,E,H,L,F
+;
+@OSINIT: 		XOR	A
+			LD	(@FLAGS), A		; Clear flags
+         		LD 	DE, Stack_Top		; DE = HIMEM
+         		LD 	E, A			; PAGE BOUNDARY
+         		LD 	HL, @USER
+         		RET	
+
+;OSLINE - Read/edit a complete line, terminated by CR.
+;   Inputs: HL addresses destination buffer.
+;           (L=0)
+;  Outputs: Buffer filled, terminated by CR.
+;           A=0.
+; Destroys: A,B,C,D,E,H,L,F
+;
+@OSLINE:		CALL	OSRDCH
+			OR	A 
+			JR	Z,OSLINE
+			CP	0x0D		; CR
+			JR	Z,KEYCR		
+			CP	0x08		; Backspace
+			JR	Z,KEYBS
+			LD	(HL),A		; Save the character in the buffer
+			INC	HL
+			CALL	OSWRCH		; Echo character back to terminal
+			JR	OSLINE		; Loop
+
+KEYCR:			LD	(HL),A		; Write final CR
+			CALL	@CRLF		; Print CR
+			AND	A
+			RET 
+
+KEYBS:			INC	L		; Check for beginning of line
+			DEC	L 
+			JR	Z,OSLINE
+			CALL	OSWRCH
+			DEC	L
+			JR	OSLINE
+
+;HEX - Read a hex string and convert to binary.
+;   Inputs: HL = text pointer
+;  Outputs: HL = updated text pointer
+;           DE = value
+;            A = terminator (spaces skipped)
+; Destroys: A,D,E,H,L,F
+;
+HEX:    		LD      DE, 0            ;INITIALISE
+       			CALL    SKIPSP
+HEX1:   		LD      A,(HL)
+        		CALL    UPPRC
+        		CP      '0'
+        		JR      C,SKIPSP
+        		CP      '9'+1
+        		JR      C,HEX2
+        		CP      'A'
+        		JR      C,SKIPSP
+        		CP      'F'+1
+        		JR      NC,SKIPSP
+        		SUB     7
+HEX2:   		AND     0FH
+        		EX      DE,HL
+        		ADD     HL,HL
+        		ADD     HL,HL
+        		ADD     HL,HL
+        		ADD     HL,HL
+        		EX      DE,HL
+        		OR      E
+        		LD      E,A
+        		INC     HL
+        		JR      HEX1
+
+;OSCLI - Process an "operating system" command
+;
+@OSCLI: 		CALL    SKIPSP
+			CP      CR
+			RET     Z
+			CP      '|'
+			RET     Z
+			CP      '.'
+			JP      Z,STARDOT	; *.
+			EX      DE,HL
+			LD      HL,COMDS
+OSCLI0:			LD      A,(DE)
+			CALL    UPPRC
+			CP      (HL)
+			JR      Z,OSCLI2
+			JR      C,HUH
+OSCLI1:			BIT     7,(HL)
+			INC     HL
+			JR      Z,OSCLI1
+			INC     HL
+			INC     HL
+			JR      OSCLI0
+;
+OSCLI2:			PUSH    DE
+OSCLI3:			INC     DE
+			INC     HL
+			LD      A,(DE)
+			CALL    UPPRC
+			CP      '.'		; ABBREVIATED?
+			JR      Z,OSCLI4
+			XOR     (HL)
+			JR      Z,OSCLI3
+			CP      80H
+			JR      Z,OSCLI4
+			POP     DE
+			JR      OSCLI1
+;
+OSCLI4:			POP     AF
+		        INC     DE
+OSCLI5:			BIT     7,(HL)
+			INC     HL
+			JR      Z,OSCLI5
+			LD      A,(HL)
+			INC     HL
+			LD      H,(HL)
+			LD      L,A
+			PUSH    HL
+			EX      DE,HL
+			JP      SKIPSP
+
+HUH:    		LD      A,254
+        		CALL    EXTERR
+        		DEFM    'Bad command'
+        		DEFB    0			
+
+SKIPSP:			LD      A,(HL)
+        		CP      ' '
+        		RET     NZ
+        		INC     HL
+        		JR      SKIPSP	
+
+UPPRC:  		AND     7FH
+			CP      '`'
+			RET     C
+			AND     5FH		; CONVERT TO UPPER CASE
+			RET					
+
+; OSCLI - *CAT / *.
+;
+STARDOT:
+CAT:			RET 
+
+; OSCLI *RUN n
+; Set CPU Speed: 0 = 3.5Mhz, 1 = 7Mhz, 2 = 14Mhz, 3 = 28Mhz
+;
+RUN:			CALL	HEX
+			LD	A, E 
+			NEXTREG	0x07, A 
+			RET
+
+; OSCLI *FX N
+; 19: HSYNC
+;
+FX:			CALL	HEX		; TODO: Need Decimal
+			LD	A, E
+			CP	0x19
+			JR	Z, FX_19 
+			JP 	HUH
+FX_19:			HALT
+			RET
+
+; OSCLI *MEMDUMP addr, count
+; 
+MEMDUMP			CALL	HEX		; Get stard address
+			INC	HL
+			PUSH	DE 
+			CALL	HEX		; Get length in DE
+			POP	HL 		; Get start address in HL
+			JP	NEXT_DEBUG.Memory_Dump
+
+; OSCLI *TEST
+; Stick code to test code here
+;
+AREA51:			CALL 	NEXT_DOS.Version
+			RET
+
+; Each command has bit 7 of the last character set, and is followed by the address of the handler
+; It looks like these need to be in alphabetical orde
+;
+COMDS:  		DC	'TEST': DEFW AREA51	; Test code call for debugging new functions
+			DC	'CAT':	DEFW CAT	; Catalogue SD Card
+			DC	'FX':	DEFW FX		; FX commands
+			DC	'MEMDUMP': DEFW MEMDUMP	; Mem dump
+			DC	'RUN':	DEFW RUN	; CPU speed
+			DEFB	0FFH
+
+; PUT port,data[,type]
+; Moved from exec.z80
+;
+@PUT:			CALL    EXPRI           ;PORT ADDRESS
+			EXX
+			PUSH    HL
+			CALL    COMMA
+			CALL    EXPRI           ;DATA
+			EXX
+			PUSH	HL
+			CALL    NXT		;If no third parameter passed
+			CP	','		;Can we find a comma
+			LD	A, 0		;Default value
+			JR 	NZ, 1F		;No, so skip third parameter
+			INC	IY		;Yes, so skip the comma
+			CALL	EXPRI		;TYPE
+			EXX
+			LD	A,L		;A = TYPE
+1:			POP	HL		;L = DATA
+			POP	BC		;BC = PORT/REGISTER
+			OR	A 
+			JR	Z, 2F	
+			DEC	A 
+			JR	Z, 3F
+			JP	XEQ		;TODO: Error here
+2:			OUT     (C),L           ;OUTPUT TO PORT BC
+			JP      XEQ
+3:			LD	A,C		;Get register value TODO: Error if B is not zero
+			LD	BC,0x243B	;Set Next register number
+			OUT	(C),A 
+			INC	B
+			OUT	(C),L
+			JP	XEQ
+
+; GET(port[,type])
+; Called from GET in eval.z80
+;
+@GET_PORT:		INC	IY		;Skip '('
+			CALL    EXPRI           ;PORT ADDRESS
+			EXX
+			PUSH	HL
+			CALL	NXT
+			CP	','
+			LD	A, 0		;Default type
+			JR	NZ,1F
+			INC	IY		;Skip comma
+			CALL	EXPRI		;Type
+			EXX
+			LD	A, L		;A = TYPE
+1:			POP	BC		;BC = PORT/REGISTER
+			OR	A 
+			JR	Z, 2F 		;If zero, skip to plain Z80 fetch
+			LD 	A,C		;Get register value in A
+			LD	BC,0x243B	;Nextreg port
+			OUT	(C),A		;Select register from Next to read
+			INC	B
+2:			IN	L,(C)		;Read value
+			CALL    BRAKET
+			JP      EVAL.COUNT0
+
+; COLOUR 0-7 (Ink)
+; COLOUR 128-135 (Paper)
+;
+@COLOUR:		CALL    EXPRI
+			EXX
+			LD	A, (TEXT_COLOUR)
+			CALL	Get_ULA_Colour
+			LD	(TEXT_COLOUR), A
+			JP	XEQ
+; GCOL mode, colour
+;
+@GCOL:			CALL	EXPRI		; Get the mode
+			EXX
+			LD	A, L
+			LD	(PLOT_MODE), A 
+			CALL	COMMA
+			CALL	EXPRI		; Get the colour
+			EXX 
+			LD	A, (VIDEO_MODE)
+			OR	A 
+			JR	Z, 1F
+			DEC	A 
+			JP	NZ, XEQ 
+			LD	A, L 
+			LD	(PLOT_COLOUR), A 
+			JP	XEQ 
+1:			LD	A, (PLOT_COLOUR)
+			CALL	Get_ULA_Colour
+			LD	(PLOT_COLOUR), A 
+			JP	XEQ
+
+; Calculate Speccy colour for COLOUR and GCOL
+; A: Current attribute value
+; L: Colour
+;
+@Get_ULA_Colour:	BIT	7, L 		; Check bit 7 of the colour
+			JR	Z, 1F		; for numbers >=128
+			AND	%11000111	; And out the PAPER colour
+			LD	H, A		; Store in H
+			LD	A, L 
+			AND	%00000111	; Get colour
+			RLA 			; Shift into position
+			RLA 
+			RLA 
+			OR	H 		; Or with existing colour
+			RET
+1:			AND	%11111000	; And out the INK colour
+			LD	H, A		; Store in H
+			LD	A, L 
+			AND	%00000111	; Get colour
+			OR	H 		; Or with existing colour
+			RET
+
+; PLOT mode,x,y
+;
+@PLOT:			CALL	EXPRI		; Get the mode - ignore for now
+			EXX
+			CALL	COMMA 
+			CALL	MOVE_1		; Get X and Y parameters
+			LD	A, (PLOT_COLOUR)
+			LD	DE, (PLOTPOS_X)
+			LD	HL, (PLOTPOS_Y)
+			CALL	NEXT_GRAPHICS.Plot
+1:			JP	XEQ
+
+; MOVE x, y
+;
+@MOVE:			CALL	MOVE_1		; Get X and Y parameters
+			JP	XEQ
+@MOVE_1:		CALL	EXPRI		; Get X
+			EXX 
+			LD	(PLOTPOS_X), HL	; And store
+			CALL	COMMA 
+			CALL	EXPRI		; Get Y
+			EXX 
+			LD	(PLOTPOS_Y), HL ; And store
+			RET 
+
+; POINT(x,y)
+;
+@POINT:			CALL	EXPRI		; Get X coordinate	
+			EXX
+			PUSH	HL
+			CALL	COMMA 
+			CALL	EXPRI		; Get Y coordinate
+			EXX
+			POP	DE		; HL = Y, DE = X
+			LD	D, L		; D = Y, E = X
+			PIXELAD			; Get the pixel address in HL
+			SETAE			; Get pixel position in A
+			AND	(HL)		; Mask out pixel
+			LD	L, 0
+			JR	Z, 1F
+			INC	L
+1:			CALL	BRAKET
+			JP      EVAL.COUNT0
+
+; Stuff not implemented yet
+; There's also more stuff in sorry.z80
+;
+@OSBPUT:
+@OSBGET:
+@OSSTAT:
+@OSSHUT:
+@OSOPEN:
+@OSCALL:
+@OSSAVE:
+@OSLOAD:
+@GETPTR:
+@PUTPTR:
+@GETEXT:
+@RESET:
+			RET
+
+			ENDMODULE

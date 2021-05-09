@@ -1,0 +1,91 @@
+;
+; Title:	BBC Basic Interpreter - Z80 version
+;		Spectrum Next Graphics Routines
+; Author:	Dean Belfield
+; Created:	06/05/2021
+; Last Updated:	06/05/2021
+;
+; Modinfo:
+;
+			MODULE	NEXT_GRAPHICS 
+
+; Plot a point
+; HL: Y
+; DE: X
+;  A: Colour
+;
+Plot:			LD	C, A 		; Store colour in C
+			LD	A, H		; Screen boundary check
+			OR	D
+			RET	NZ
+			LD	A, D
+			CP	192
+			RET	NC
+			LD	A, (VIDEO_MODE)
+			OR	A 
+			JR	Z, Plot_ULA 
+			DEC	A 
+			JR	Z, Plot_L2
+			RET
+	
+Plot_ULA		LD	D, L		; D = Y, E = X
+			PIXELAD			; Get the pixel address in HL
+			LD	D,(HL)		; Get current contents of that address
+			SETAE			; Get pixel position in A
+			OR	D		; Or with screen
+			LD	(HL),A		; And store back in
+			LD	A, H 		; Get the attribute address from the screen address
+			RRA
+			RRA 
+			RRA 
+			AND 	3 
+			OR	88
+			LD	H, A 
+			LD	(HL), C		; Write the colour out
+			RET
+
+Plot_L2:		LD	D, L 		; D = Y, E = X
+			PUSH	BC
+			CALL	L2_Get_Pixel_Address
+			POP	BC
+			LD	(HL), C		; Write the colour out
+			RET
+
+; Get pixel position
+; Pages in the correct 16K Layer 2 screen bank into 0x0000
+; D: Y coordinate
+; E: X coordinate
+; Returns:
+; HL: Address in memory (between 0x0000 and 0x3FFF)
+;
+L2_Get_Pixel_Address:	LD 	L,E			; The low byte is the X coordinate
+			LD	A,D			; Get the Y coordinate
+			AND	0x3F			; Offset in bank
+			LD	H,A			; Store in high byte
+			LD	A,D			; Get the Y coordinate
+			AND	0xC0			; Get the bank number
+			OR	%00000011		; Set visible/write bits
+			LD	BC,0x123B		; Port #
+			OUT	(C),A 			; Page in the screen bank
+			RET
+
+; A: Colour to fill with
+;
+L2_Clear_Screen:	LD	C, %00000011
+			CALL 	1F
+			LD	C, %01000011
+			CALL 	1F
+			LD	C, %10000011
+1:			PUSH	AF
+			LD	A,C
+			LD	BC, 0x123B
+			OUT	(C),A
+			POP	AF
+			PUSH	AF
+			LD	DE,0x0000
+			LD	BC,0x4000
+			CALL	FillDMA
+			POP	AF
+			RET
+
+			ENDMODULE

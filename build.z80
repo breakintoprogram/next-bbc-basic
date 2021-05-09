@@ -1,0 +1,70 @@
+;
+; Title:	BBC Basic for Spectrum Next - Main build file
+; Author:	Dean Belfield
+; Created:	02/05/2021
+; Last Updated:	02/05/2021
+;
+; Modinfo:
+;
+
+			SLDOPT COMMENT WPMEM, LOGPOINT, ASSERTION
+			
+			DEVICE ZXSPECTRUMNEXT		; sjasmplus directive for SAVESNA at end
+
+; Assembly flags
+;
+BUILD_EMULATOR		EQU	1			; Set to 1 to build for ZEsarUX; adds various bodges in
+
+			IF	BUILD_EMULATOR = 1	
+ULA_X_SCROLL		EQU	0x32			; ZEsarUX 9.2 incorrectly implements ULA scrolling registers
+ULA_Y_SCROLL		EQU	0x33
+			ELSE
+ULA_X_SCROLL		EQU	0x26			
+ULA_Y_SCROLL		EQU	0x27
+			ENDIF
+
+IM2_Table:              EQU	0xFE00			; 256 byte page (+ 1 byte) for IM2
+IM2_JP:                 EQU	0xFDFD			; 3 bytes for JP routine under IM2 table
+Stack_Top:		EQU	0x0000			; Stack at top
+Code_Start		EQU	0x6000
+
+			ORG 	Code_Start
+
+			include "macros.z80"
+
+			include "next_init.z80"
+			include "next_dos.z80"
+			include "next_debug.z80"
+			include "next_io.z80"
+			include "next_graphics.z80"
+			include "next_dma.z80"
+
+			include "main.z80"
+			include "exec.z80"
+			include "eval.z80"
+			include "fpp.z80"
+			include "sorry.z80"
+			include "patch.z80"
+			include "ram.z80"
+;
+; Extra Next-implementation specific system variables
+;
+@FLAGS:			DEFS	1			; Flags: B7=ESC PRESSED, B6=ESC DISABLED, B5:Capslock
+@VIDEO_MODE:		DEFB	0
+@CHARPOS_X:		DEFB	0
+@CHARPOS_Y:		DEFB	0
+@PLOTPOS_X:		DEFW	0
+@PLOTPOS_Y:		DEFW	0
+@SCRLPOS_Y:		DEFB	0
+@PLOT_MODE:		DEFB	0
+@PLOT_COLOUR:		DEFB	%01000111
+@KEYCODE:		DEFB	0
+@TIME:			DEFW	0, 0	
+@TEXT_COLOUR:		DEFB	%01000111
+
+@USER:  		SAVENEX OPEN "Z80/BBC Basic/build.nex", Code_Start, Stack_Top
+			SAVENEX CORE 3, 0, 0
+			SAVENEX CFG  7, 0, 0
+			SAVENEX BAR  1, 0xE0, 50, 25
+			SAVENEX AUTO
+			SAVENEX CLOSE

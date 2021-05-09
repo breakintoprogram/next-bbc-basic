@@ -1,0 +1,88 @@
+;
+; Title:	BBC Basic Interpreter - Z80 version
+;		Spectrum Next Debug routines
+; Author:	Dean Belfield
+; Created:	07/05/2021
+; Last Updated:	07/05/2021
+;
+; Modinfo:
+;
+
+			MODULE	NEXT_DEBUG 
+
+; Dump memory
+; HL: Start address
+; DE: Length
+;
+Memory_Dump:		LD	A, H
+			CALL	Print_Hex8
+			LD	A, L 
+			CALL	Print_Hex8
+			LD 	A, ':' : CALL NEXT_IO.Print_Char
+			LD	A, ' ' : CALL NEXT_IO.Print_Char
+			PUSH	HL
+			PUSH	DE 
+
+			LD	B, 8
+1:			LD	A, (HL)
+			CALL 	Print_Hex8
+			INC	HL
+			DEC	DE
+			DEC 	B 
+			JR	Z, 3F
+			LD	A, D 
+			OR 	E
+			JR	NZ, 1B
+
+2:			LD	A, ' ' : CALL NEXT_IO.Print_Char
+			LD	A, ' ' : CALL NEXT_IO.Print_Char
+			DJNZ	2B
+
+3:			POP	DE 
+			POP	HL
+			LD	A, ' ' : CALL NEXT_IO.Print_Char
+			LD	B, 8
+4:			LD	A, (HL)
+			CALL	Print_ASCII
+			INC	HL 
+			DEC	DE 
+			LD	A, D 
+			OR 	E 
+			JR	Z, 5F
+			DJNZ	4B
+
+			LD	A, 0x0D
+			CALL	NEXT_IO.Print_Char
+
+			LD	A,(KEYCODE)
+			CP	0x1B			; Check for ESC 
+			RET	Z
+
+			JR	Memory_Dump
+
+5:			LD	A, 0x0D
+			JP	NEXT_IO.Print_Char
+
+;  A: Ascii char to print
+;
+Print_ASCII:		BIT	7, A 			; If > 128
+			JR	NZ, 2F			; Skip to print '.'
+			CP	32			; If >= 32
+			JR	NC, 1F			; Skip to print character
+2:			LD	A,  '.'
+1:			JP	NEXT_IO.Print_Char
+
+;  A: Hex digit to print
+;
+Print_Hex8:		PUSH	AF			; Store the value
+			SWAPNIB				; Move to bottom nibble
+			CALL	1F			; Print the first nibble
+			POP	AF
+1:			AND	0x0F			; Get the bottom nibble
+			ADD	A,0x90			; Convert to HEX
+			DAA 
+			ADC	A,0x40
+			DAA
+			JP	NEXT_IO.Print_Char	; Print
+
+			ENDMODULE

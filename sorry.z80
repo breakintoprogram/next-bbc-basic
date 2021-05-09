@@ -1,0 +1,23 @@
+;
+; Title:	BBC Basic Interpreter - Z80 version
+;		Catch-all for unimplemented functionality
+; Author:	Dean Belfield
+; Created:	02/05/2021
+; Last Updated:	05/05/2021
+;
+; Modinfo:
+;   
+			MODULE SORRY
+	
+@DRAW:
+@ENVEL:
+@SOUND:
+@ADVAL:
+@GETIMS:
+@PUTIMS:
+			XOR     A
+			CALL    EXTERR
+			DEFM    'Sorry'
+			DEFB    0
+
+			ENDMODULE

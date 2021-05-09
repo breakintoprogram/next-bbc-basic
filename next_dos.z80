@@ -1,0 +1,48 @@
+;
+; Title:	BBC Basic Interpreter - Z80 version
+;		Spectrum Next DOS routines
+; Author:	Dean Belfield
+; Created:	06/05/2021
+; Last Updated:	06/05/2021
+;
+; Modinfo:
+;
+
+			MODULE	NEXT_DOS
+
+; Get 3DOS version
+;
+Version:		PUSH	AF 
+			PUSH	BC 
+			PUSH	HL
+			PUSH	IX
+			LD	HL, 0x103
+			CALL 	DOS
+			POP	IX 
+			POP	HL 
+			POP	BC 
+			POP 	AF
+			RET 
+
+; HL: Address of 3DOS routine to call 
+;
+DOS:			DI 
+			PUSH	AF 
+			PUSH	BC 
+			Z80PORT	0x7FFD, 0x00		; Select ROM L: %10 = 0
+			Z80PORT 0x1FFD, 0x04		; Select ROM H: %10 = 1
+			POP	BC 
+			POP 	AF
+			EI
+			CALL_HL
+	 		DI 
+			PUSH	AF 
+			PUSH 	BC
+			Z80PORT	0x7FFD, 0x10		; Select ROM L: %11 = 1
+			Z80PORT 0x1FFD, 0x04		; Select ROM H: %11 = 1
+			POP	BC 
+			POP 	AF 
+			EI
+			RET 
+
+			ENDMODULE
