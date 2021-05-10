@@ -2,11 +2,11 @@
 # next-bbc-basic
 A port of BBC Basic for Z80 to the Spectrum Next
 
-### Why BBC Basic
+### What is BBC Basic for Z80?
 
-The original version of BBC Basic was written by Sophie Wilson at Acorn in 1981. It was written in 6502 for the BBC Micro range of computers, designed to support the UK Computer Literacy Project.
+The original version of BBC Basic was written by Sophie Wilson at Acorn in 1981 for the BBC Micro range of computers, and was designed to support the UK Computer Literacy Project. R.T.Russell ported the 6502 version to Z80, and this version has been implemented on a number of Z80 based machines. [You can find a full history of BBC Basic on his website](http://www.bbcbasic.co.uk/bbcbasic/history.html).
 
-R.T.Russell ported this to Z80, and this version has been ported to a number of Z80 based machines. [You can find a full history of BBC Basic on his website](http://www.bbcbasic.co.uk/bbcbasic/history.html).
+### Why am I doing this?
 
 Whilst I love Sinclair BASIC, I feel that BBC Basic addresses many of its shortcomings, including the clunky editor, variable name limitations for strings and arrays, and performance.
 
@@ -54,7 +54,10 @@ This is an attempt to stick to the BBC BASIC standard with 1-bit graphics
 
 ### STAR commands
 
-###### *RUN n
+###### *TIME
+Output the current RTC time (if RTC fitted) in BBC Master format.
+The time is also available in the system variable TIME$
+###### *TURBO n
 Will set the turbo mode (0: 3.5Mhz, 1: 7Mhz, 2: 14Mhz, 3: 28Mhz)
 ###### *MEMDUMP start,len
 List contents of memory - start and len are in hex
@@ -100,7 +103,7 @@ http://cowlark.com/2019-06-14-bbcbasic-opensource/index.html
 
 The bulk of the Spectrum Next specific code I've written can be found in the z80 files prefixed with "next_". I've clearly commented any changes made to R.T.Russell's original source files in the source code.
 
-Any additions or modifications I've made to port this to the Next have been released under the same licensing terms as the original code.
+Any additions or modifications I've made to port this to the Next have been released under the same licensing terms as the original code, and code that has been copied or inspired by other sources is clearly marked, with the appropriate accreditations.
 
 Dean Belfield
 www.breakintoprogram.co.uk
