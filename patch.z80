@@ -3,10 +3,11 @@
 ;		Patch file for Spectrum Next
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	09/05/2021
+; Last Updated:	10/05/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Fixed plot mode and bug in COMDS table
+; 10/05/2021:	Added RTC TIME$ and *TIME, moved some code into misc.z80, and changes due to VDU support
 			
 			MODULE PATCH
 
@@ -19,24 +20,16 @@
 			CALL 	@CLRSCN
 			JP	XEQ
 
-; CLRSCN: clears the screen.
 ; CLG: clear the graphics screen
 ;
-@CLG
-@CLRSCN:		PUSH	AF
-			PUSH	BC
-			PUSH	DE
-			PUSH	HL
-			LD	A,%00111000
-			CALL	NEXT_IO.Clear_Screen
-			LD	DE, 0
-			LD	HL, 0
-			CALL	PUTCSR
-			POP	HL
-			POP	DE
-			POP	BC
-			POP	AF
-			RET
+@CLG:			LD	A, 0x10
+			CALL	OSWRCH 
+			JP	XEQ
+
+; CLRSCN: clears the screen.
+;
+@CLRSCN:		LD	A, 0x0C
+			JP	OSWRCH
 
 ; PUTIME: set current time to DE:HL, in centiseconds.
 ;
@@ -49,6 +42,10 @@
 @GETIME:		LD	DE, (TIME + 2)
  	  		LD	HL, (TIME + 0)
 			RET
+
+; Get the time string from the real-time clock module
+;
+@GETIMS:		JP	NEXT_RTC.GET_DATE_STRING
 
 ; PUTCSR: move to cursor to x=DE, y=HL
 ;
@@ -88,16 +85,7 @@
 
 ; OSWRCH: write a character out
 ;
-@OSWRCH:		PUSH	AF
-			PUSH	BC
-			PUSH	DE
-			PUSH	HL
-			CALL	NEXT_IO.Print_Char
-			POP	HL
-			POP	DE
-			POP	BC
-			POP	AF
-			RET 
+@OSWRCH:		JP	NEXT_IO.Print_Char
 
 ;OSKEY - Read key with time-limit, test for ESCape.
 ;Main function is carried out in user patch.
@@ -163,7 +151,7 @@ ESCTEST:		LD	A, (KEYCODE)
 			JR	Z,OSLINE
 			CP	0x0D		; CR
 			JR	Z,KEYCR		
-			CP	0x08		; Backspace
+			CP	0x7F		; Backspace
 			JR	Z,KEYBS
 			LD	(HL),A		; Save the character in the buffer
 			INC	HL
@@ -182,38 +170,6 @@ KEYBS:			INC	L		; Check for beginning of line
 			DEC	L
 			JR	OSLINE
 
-;HEX - Read a hex string and convert to binary.
-;   Inputs: HL = text pointer
-;  Outputs: HL = updated text pointer
-;           DE = value
-;            A = terminator (spaces skipped)
-; Destroys: A,D,E,H,L,F
-;
-HEX:    		LD      DE, 0            ;INITIALISE
-       			CALL    SKIPSP
-HEX1:   		LD      A,(HL)
-        		CALL    UPPRC
-        		CP      '0'
-        		JR      C,SKIPSP
-        		CP      '9'+1
-        		JR      C,HEX2
-        		CP      'A'
-        		JR      C,SKIPSP
-        		CP      'F'+1
-        		JR      NC,SKIPSP
-        		SUB     7
-HEX2:   		AND     0FH
-        		EX      DE,HL
-        		ADD     HL,HL
-        		ADD     HL,HL
-        		ADD     HL,HL
-        		ADD     HL,HL
-        		EX      DE,HL
-        		OR      E
-        		LD      E,A
-        		INC     HL
-        		JR      HEX1
-
 ;OSCLI - Process an "operating system" command
 ;
 @OSCLI: 		CALL    SKIPSP
@@ -222,7 +178,7 @@ HEX2:   		AND     0FH
 			CP      '|'
 			RET     Z
 			CP      '.'
-			JP      Z,STARDOT	; *.
+			JP      Z,STAR_DOT	; *.
 			EX      DE,HL
 			LD      HL,COMDS
 OSCLI0:			LD      A,(DE)
@@ -267,68 +223,75 @@ OSCLI5:			BIT     7,(HL)
 HUH:    		LD      A,254
         		CALL    EXTERR
         		DEFM    'Bad command'
-        		DEFB    0			
+        		DEFB    0
 
-SKIPSP:			LD      A,(HL)
-        		CP      ' '
-        		RET     NZ
-        		INC     HL
-        		JR      SKIPSP	
+; ----------------------------------------------------------------------------
 
-UPPRC:  		AND     7FH
-			CP      '`'
-			RET     C
-			AND     5FH		; CONVERT TO UPPER CASE
-			RET					
+; OSCLI STAR commands
+
+; Each command has bit 7 of the last character set, and is followed by the address of the handler
+; It looks like these need to be in alphabetical order
+;
+COMDS:  		DC	'CAT':		DEFW STAR_DOT		; Catalogue SD Card
+			DC	'FX':		DEFW STAR_FX		; FX commands
+			DC	'MEMDUMP': 	DEFW STAR_MEMDUMP	; Memory hex dump
+			DC	'TEST': 	DEFW STAR_TEST		; Test code call for debugging new functions
+			DC	'TIME': 	DEFW STAR_TIME
+			DC	'TURBO':	DEFW STAR_TURBO		; CPU speed
+			DB	0xFF
 
 ; OSCLI - *CAT / *.
 ;
-STARDOT:
-CAT:			RET 
+STAR_DOT:		RET 
 
-; OSCLI *RUN n
+; OSCLI TURBO n
 ; Set CPU Speed: 0 = 3.5Mhz, 1 = 7Mhz, 2 = 14Mhz, 3 = 28Mhz
 ;
-RUN:			CALL	HEX
+STAR_TURBO:		CALL	ASC_TO_HEX
 			LD	A, E 
 			NEXTREG	0x07, A 
 			RET
 
-; OSCLI *FX N
+; OSCLI FX n
 ; 19: HSYNC
 ;
-FX:			CALL	HEX		; TODO: Need Decimal
+STAR_FX:		CALL	ASC_TO_HEX	; TODO: Need Decimal
 			LD	A, E
 			CP	0x19
-			JR	Z, FX_19 
+			JR	Z, STAR_FX_19 
 			JP 	HUH
-FX_19:			HALT
+STAR_FX_19:		HALT
 			RET
 
-; OSCLI *MEMDUMP addr, count
+; OSCLI MEMDUMP addr, count
 ; 
-MEMDUMP			CALL	HEX		; Get stard address
+STAR_MEMDUMP		CALL	ASC_TO_HEX	; Get stard address
 			INC	HL
 			PUSH	DE 
-			CALL	HEX		; Get length in DE
+			CALL	ASC_TO_HEX	; Get length in DE
 			POP	HL 		; Get start address in HL
 			JP	NEXT_DEBUG.Memory_Dump
 
-; OSCLI *TEST
+; OSCLI TEST
 ; Stick code to test code here
 ;
-AREA51:			CALL 	NEXT_DOS.Version
+STAR_TEST:		CALL 	NEXT_DOS.Version
 			RET
 
-; Each command has bit 7 of the last character set, and is followed by the address of the handler
-; It looks like these need to be in alphabetical orde
+; OSCLI TIME
+; Output current time
 ;
-COMDS:  		DC	'CAT':	DEFW CAT	; Catalogue SD Card
-			DC	'FX':	DEFW FX		; FX commands
-			DC	'MEMDUMP': DEFW MEMDUMP	; Mem dump
-			DC	'RUN':	DEFW RUN	; CPU speed
-			DC	'TEST': DEFW AREA51	; Test code call for debugging new functions
-			DEFB	0FFH
+STAR_TIME:		CALL	GETIMS
+			EX	DE, HL 
+			LD	(HL), 0x0A
+			INC	HL 
+			LD	(HL), 0x0D
+			INC	HL
+			LD	(HL), 0
+			LD	HL, ACCS
+			JP	MAIN.TEXT 	
+
+; ----------------------------------------------------------------------------
 
 ; PUT port,data[,type]
 ; Moved from exec.z80
