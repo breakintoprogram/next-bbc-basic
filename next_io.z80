@@ -3,9 +3,10 @@
 ;		Spectrum Next I/O Routines
 ; Author:	Dean Belfield
 ; Created:	03/05/2021
-; Last Updated:	03/05/2021
+; Last Updated:	10/05/2021
 ;
 ; Modinfo:
+; 10/05/2021:	Started implementing VDU engine
 ;
 			MODULE	NEXT_IO
 
@@ -88,7 +89,7 @@ Read_Keyboard:		PUSH	BC
 			RET 
 5:			CP	"0"			; Caps Shift + 0
 			JR	NZ, 6F
-			LD	A, 0x08			; Return Backspace
+			LD	A, 0x7F			; Return DEL
 			RET 
 6:			CP	"2"			; Caps Shift + 2
 			RET	NZ
@@ -113,20 +114,27 @@ Get_Charpos_1:		PUSH	AF
  
 ; Print a character at the current charpos
 ;
-Print_Char:		PUSH	BC 
+Print_Char:		PUSH	BC 			; Stack all the registers
 			PUSH	DE
 			PUSH	HL
-			CALL	Print_Char_1
+			CALL	1F			; Call the print routine
 			POP	HL 
 			POP	DE 
 			POP	BC
 			RET 
-Print_Char_1:		CALL	Get_Charpos
-			CP	32
-			JR	C, Print_Char_Ctrl
-				
+
+1:			LD	C, A			; Temporarily store the character
+			LD	A, (VDU_STATE)		; What's the current VDU state?
+			OR	A 			; If not zero...
+			JR	NZ, VDU_READ_BYTES	; Read the data into the VDU buffer and don't output
+			LD	A, C			; Get the character code back
+			CP	32			; Is the character a control routine?
+			JR	C, VDU_CTRL_CHAR	; Yes, so just handle that
+			CP	0x7F			; Is it backspace?
+			JR	Z, VDU_DEL 		; Yes, so deal with that
+			CALL	Get_Charpos		; Otherwise print it out		
 			CALL	ULA_Print_Char_At
-			LD	A, H 
+			LD	A, H 			; And set the attribute up too
 			RRA
 			RRA 
 			RRA 
@@ -135,42 +143,242 @@ Print_Char_1:		CALL	Get_Charpos
 			LD	H, A 
 			LD	A,(TEXT_COLOUR)
 			LD	(HL), A
+			JP	VDU_HT
 
+; Handle all control characters
+;  A: Character code
+;  C: Character code (copied in Print_Char)
+;
+VDU_CTRL_CHAR:		ADD	A, A			; Index into the VDU table
+			LD	HL, TABLE_VDU
+			ADD	HL, A 
+			LD	A, (HL)
+			INC	HL 
+			LD	H, (HL) 
+			LD	L, A 			; Get the jmup address
+			LD	A, C 			; Get the character back in A
+			JP	(HL)			; And jump to the correct routine
 
-Print_Char_NC:		LD	A, (CHARPOS_X)
+; &7F DEL - Delete
+;
+VDU_DEL:		CALL	VDU_BS
+			LD	A, " "
+			CALL	Get_Charpos
+			JP	ULA_Print_Char_At
+
+; Just buffer the characters in the VDU buffer
+; Until we have read enough in, then execute the relevant code
+;
+VDU_READ_BYTES:		LD	HL, VDU_BUFFER		; HL: VDU buffer
+			LD	A, (VDU_PTR)		; A: Current position in buffer
+			ADD	HL, A 			; Index in
+			LD	(HL), C			; Store the character
+			INC	A 			; Increment the pointer
+			LD	(VDU_PTR), A 		; And store
+			LD	A, (VDU_COUNT)		; Decrement the VDU count; this is the number
+			DEC	A 			; of chars left to read before we return VDU_STATE
+			LD	(VDU_COUNT), A 		; back to 0 and execute the VDU command
+			RET	NZ			; If not zero, then return
+			LD	A, (VDU_STATE)		; Get the correct handler for this state
+			DEC	A 			; Index from 0
+			ADD	A, A
+			LD	HL, TABLE_VDU_EXEC	; by looking it up in TABLE_VDU_EXEC
+			ADD	HL, A 
+			LD	A, (HL)
+			INC	HL 
+			LD	H, (HL)
+			LD	L, A 
+			XOR	A 
+			LD	(VDU_STATE), A		; Reset the VDU state
+			JP 	(HL)
+			
+; Lookup table of VDU_EXEC routines
+;
+TABLE_VDU_EXEC:		DW	VDU_EXEC_PLOT
+			DW	VDU_EXEC_COLOUR
+			DW	VDU_EXEC_GCOL 
+			DW	VDU_EXEC_TAB 
+
+; PLOT: VDU 25,mode,x;y;
+;
+VDU_EXEC_PLOT:		LD	A, (VDU_BUFFER + 0)	; Plot style in B
+			LD	B, A
+			LD	A, (PLOT_MODE) 	
+			LD	C, A			; Plot mode in C
+			LD	A, (PLOT_COLOUR)
+			LD	DE, (VDU_BUFFER + 1)
+			LD	HL, (VDU_BUFFER + 3)
+			JP	NEXT_GRAPHICS.Plot
+
+; COLOUR: VDU 17,colour
+;
+VDU_EXEC_COLOUR:	LD	A, (VDU_BUFFER + 0)
+			LD	L, A
+			LD	A, (TEXT_COLOUR)
+			CALL	Get_ULA_Colour
+			LD	(TEXT_COLOUR), A
+			RET 
+
+; GCOL: VDU 18,mode,,colour
+;
+VDU_EXEC_GCOL:		LD	A, (VDU_BUFFER + 0)
+			LD	(PLOT_MODE), A 
+			LD	A, (VDU_BUFFER + 1)
+			LD	L, A 
+			LD	A, (PLOT_COLOUR)
+			CALL	Get_ULA_Colour
+			LD	(PLOT_COLOUR), A
+			RET 
+
+; TAB: VDU 31,x,y
+;
+VDU_EXEC_TAB:		LD	A, (VDU_BUFFER + 0)
+			LD 	(CHARPOS_X), A 
+			LD	A, (VDU_BUFFER + 1)
+			LD	(CHARPOS_Y), A
+			RET 
+
+; Lookup table of VDU codes
+;
+TABLE_VDU:		DW 	VDU_NUL			; &00 NUL - Do nothing
+			DW	VDU_NUL			; &01 SOH - Send next character to printer only
+			DW	VDU_NUL			; &02 STX - Start print job
+			DW	VDU_NUL			; &03 ETX - End print job
+			DW	VDU_NUL			; &04 EOT - Write text at text cursor
+			DW	VDU_NUL			; &05 ENQ - Write text at graphics cursor
+			DW	VDU_NUL			; &06 ACK - Enable VDU drivers
+			DW	VDU_NUL			; &07 BEL - Make a short beep
+			DW	VDU_BS			; &08 BS  - Backspace
+			DW	VDU_HT			; &09 HT  - Advance cursor one character
+			DW	VDU_LF			; &0A LF  - Move cursor down one line
+			DW	VDU_VT			; &0B VT  - Move cursor up one line
+			DW	VDU_FF			; &0C FF  - Clear text area (CLS)
+			DW	VDU_CR			; &0D CR  - Move cursor to start of current line
+			DW	VDU_NUL			; &0E SO  - Page mode on
+			DW	VDU_NUL			; &0F SI  - Page mode off
+			DW	VDU_NUL			; &10 DLE - Clear graphcs area (CLG)
+			DW	VDU_DC1			; &11 DC1 - Define text colour (COLOR n)
+			DW	VDU_DC2			; &12 DC2 - Define graphics colour (GCOL a, n)
+			DW	VDU_NUL			; &13 DC3 - Define logical colour (COLOUR l, p)
+			DW	VDU_NUL			; &14 DC4 - Restore logical colours
+			DW	VDU_NUL			; &15 NAK - Disable VDU drivers or delete current line
+			DW	VDU_NUL			; &16 SYN - Select screen mode (MODE n)
+			DW	VDU_NUL			; &17 ETB - Define display character and other commands; used by ON and OFF
+			DW	VDU_NUL			; &18 CAN - Define graphics windows
+			DW	VDU_EM			; &19 EM  - PLOT k, x, y (used by MOVE, DRAW, etc)
+			DW	VDU_NUL			; &1A SUB - Restore default windows
+			DW	VDU_NUL			; &1B ESC - Does nothing
+			DW	VDU_NUL			; &1C FS  - Define text window
+			DW	VDU_NUL			; &1D GS  - Define graphics origin (ORIGIN)
+			DW	VDU_RS			; &1E RS  - Home
+			DW	VDU_US			; &1F US  - Move text cursor to X, Y (PRINT TAB(x,y));
+
+; &00 NUL - Do nothing
+;
+VDU_NUL:		RET 
+
+; &08 BS  - Backspace
+; 
+VDU_BS:			LD	A, (CHARPOS_X)
+			OR	A
+			RET	Z
+			DEC	A 
+			LD	(CHARPOS_X), A 
+			RET 
+
+; &09: HT  - Advance to next character
+;
+VDU_HT:			LD	A, (CHARPOS_X)
 			INC	A
 			LD	(CHARPOS_X), A 
 			CP	32
 			RET 	C 
+			CALL	VDU_CR
 
-Print_Char_NL:		XOR	A 
-			LD 	(CHARPOS_X), A
-			LD	A, (CHARPOS_Y)
+; &0A LF  - Linefeed
+;
+VDU_LF:			LD	A, (CHARPOS_Y)
 			INC	A 
 			LD	(CHARPOS_Y), A 
 			CP	24 
 			RET 	C 
-
-Print_Char_Scroll:	LD	A, 23
+1:			LD	A, 23
 			LD	(CHARPOS_Y), A
 			JP 	Scroll_Up
 
-Print_Char_Ctrl:	CP	0x0D
-			JR	Z, Print_Char_NL 
-			CP	0x08
-			JR	Z, Print_Char_Backspace
+; &0B VT  - Move cursor up one line
+;
+VDU_VT:			LD	A, (CHARPOS_Y)
+			DEC	A 
+			LD	(CHARPOS_Y), A 
+			RET 	P 
+			XOR	A 
+			LD	(CHARPOS_Y), A 
+			JP	Scroll_Down
+
+; &0C FF  - CLS
+;
+VDU_FF:			CALL	VDU_RS
+			JP 	Clear_Screen
+
+
+; &0D CR  - Carriage Return
+;
+VDU_CR:			XOR	A 
+			LD 	(CHARPOS_X), A
 			RET 
 
-Print_Char_Backspace:	LD	A, (CHARPOS_X)
-			OR	A
-			JR	Z, 1F
-			DEC	A 
-			LD	(CHARPOS_X), A 
-1:			LD	A, " "
-			CALL	Get_Charpos
-			JP	ULA_Print_Char_At
+; &11 DC1 - COLOR n
+;
+VDU_DC1:		LD	B, 1			; 1 byte (colour)
+			LD	A, 2 			; State 2: COLOUR
+			JR	VDU_SET_STATE
 
-; Next hardware scroll
+; &12 DC2 - GCOL a, n
+;
+VDU_DC2:		LD	B, 2 			; 2 bytes (mode, colour)
+			LD	A, 3 			; State 3: GCOL
+			JR	VDU_SET_STATE
+
+; &19 EM  - PLOT k, x, y
+;
+VDU_EM:			LD	B, 5			; 5 bytes (mode, xl, xh, yl, yh)
+			LD	A, 1			; State 1: PLOT
+			JR	VDU_SET_STATE
+
+; &1E RS  - HOME
+;
+VDU_RS:			XOR	A
+			LD 	(CHARPOS_X), A 
+			LD	(CHARPOS_Y), A
+			RET
+
+; &1F US  - PRINT TAB(x,y);
+;
+VDU_US:			LD	B, 2			; 2 bytes (x, y)
+			LD	A, 4			; State 4: TAB
+			JR	VDU_SET_STATE
+
+; Set up the VDU engine to redirect characters into VDU_BUFFER
+;  A: Code for the state (the VDU character that initialised it, i.e. 25 for PLOT
+;  B: Number of bytes to read before executing the state, i.e. 5 for PLOT
+;
+VDU_SET_STATE:		LD	(VDU_STATE), A
+			LD	A, B
+			LD	(VDU_COUNT), A 
+			XOR	A 
+			LD	(VDU_PTR), A 
+			RET 
+
+; Next hardware scroll down
+;
+Scroll_Down:		LD	A, (SCRLPOS_Y)
+			DEC 	A 
+			RET	P
+			LD	A, 23
+			JR	3F
+
+; Next hardware scroll up
 ;
 Scroll_Up:		LD	A, (SCRLPOS_Y)
 			INC	A 
@@ -183,7 +391,11 @@ Scroll_Up:		LD	A, (SCRLPOS_Y)
 			SLA 	A 
 			NEXTREG	ULA_Y_SCROLL, A 
 			LD	A, (CHARPOS_Y)
-			LD	H, A
+
+; Clear a line
+;  A: Line to clear
+;
+Clear_Line:		LD	H, A
 			LD 	L, 0
 			CALL	Get_Charpos_1
 			CALL	ULA_Get_Char_Address
