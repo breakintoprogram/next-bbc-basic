@@ -1,0 +1,212 @@
+;
+; Title:	BBC Basic for Spectrum Next - Real Time Clock support
+; Authors:	Victor Trucco and Tim Gilberts
+; Link:		https://gitlab.com/thesmog358/tbblue/-/blob/master/src/asm/rtc/date.asm
+; Modified By:	Dean Belfield
+; Created:	10/05/2021
+; Last Updated:	10/05/2021
+;
+; Notice:	Portions of this code to read the RTC module on the Next have
+;		been copied from the dot function date.asm with minor changes.
+;		Anything above the distribution notice is BBC Basic for
+;		Next specific and has been coded by me.
+;
+; Information:	The BBC Master TIME$ format is:	ddd,dd MMM YYYY.hh:mm:ss
+;		For example:			Wed,09 Aug 2020.13:51:44
+;
+; Modinfo:
+;
+
+			MODULE	NEXT_RTC
+
+TABLE_DAYS:		DB 	"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"
+TABLE_MONTHS:		DB 	"Jan", "Feb", "Mar", "Apr", "May", "Jun"
+			DB	"Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+
+; Read date from RTC
+; Returns:
+; HL: Pointer to end of date string in ACCS, or empty string if no RTC or RTC error
+;  L: Implied string length, assuming ACCS is on a page boundary
+;
+GET_DATE_STRING:	CALL	READ_DATE
+			LD	DE, ACCS	; DE = pointer to start of string accumulator
+			RET 	C		; There has been an error at this point!
+			EX	DE, HL 		; Swap ACCS to HL for convenience
+			LD	DE, TABLE_DAYS
+			LD	A, (RTC_DAY)
+			CALL	LOOKUP_DATE_STR
+			LD	(HL), ',': INC HL 
+			LD	A, (RTC_DATE)
+			CALL	BCD_TO_ASC
+			LD	(HL), ' ': INC HL
+			LD	DE, TABLE_MONTHS
+			LD	A, (RTC_MONTH)
+			CALL	LOOKUP_DATE_STR 
+			LD	(HL), ' ': INC HL 
+			LD	(HL), '2': INC HL 
+			LD	(HL), '0': INC HL 
+			LD	A, (RTC_YEAR) 
+			CALL	BCD_TO_ASC
+			LD	(HL), '.': INC HL 
+			LD	A, (RTC_HOUR)
+			CALL	BCD_TO_ASC
+			LD	(HL), ':': INC HL
+			LD	A, (RTC_MIN)
+			CALL	BCD_TO_ASC
+			LD	(HL), ':': INC HL
+			LD	A, (RTC_SEC)
+			CALL	BCD_TO_ASC
+			EX	DE, HL 		; Swap ACCS pointer back to DE for output
+			RET 
+
+; Copy string from table into ACCS - assumes 3 character lookup for days and months
+; HL: Pointer to ACCS
+; DE: Pointer to table
+;  A: Index (from 1)
+;
+LOOKUP_DATE_STR:	DEC	A		; Index from 0
+			LD	C, A 
+			ADD	A, A 		; * 2
+			ADD	A, C		; * 3
+			ADD	DE, A 		; Index into table
+			LD	BC, 3
+			EX	DE, HL 
+			LDIR 
+			EX	DE, HL
+			RET 
+
+; ----------------------------------------------------------------------------
+;
+; TBBlue / ZX Spectrum Next project
+; Copyright (c) 2010-2018 
+;
+; RTC DATE - Victor Trucco and Tim Gilberts
+;
+; All rights reserved
+;
+; Redistribution and use in source and synthezised forms, with or without
+; modification, are permitted provided that the following conditions are met:
+;
+; Redistributions of source code must retain the above copyright notice,
+; this list of conditions and the following disclaimer.
+;
+; Redistributions in synthesized form must reproduce the above copyright
+; notice, this list of conditions and the following disclaimer in the
+; documentation and/or other materials provided with the distribution.
+;
+; Neither the name of the author nor the names of other contributors may
+; be used to endorse or promote products derived from this software without
+; specific prior written permission.
+;
+; THIS CODE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+; AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
+; THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+; PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE
+; LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+; CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+; SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+; INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+; CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+; ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+; POSSIBILITY OF SUCH DAMAGE.
+;
+; You are responsible for any legal issues arising from your use of this code.
+;
+
+PORT:			EQU	0x3B
+PORT_CLOCK:		EQU	0x10		; 0x103B
+PORT_DATA:		EQU	0x11		; 0x113B
+
+; Read a date into RTC_SIG
+; Returns:
+;  F: C set if error, clear if date read okay
+;
+READ_DATE:		CALL	START_SEQUENCE
+			LD	L, 0xD0
+			CALL	SEND_DATA
+			LD	L, 0x3E
+			CALL	SEND_DATA 
+			CALL	START_SEQUENCE
+			LD	L, 0xD1
+			CALL	SEND_DATA
+			LD	HL, RTC_SIG 
+			LD	E, 9
+1:			CALL	READ 
+			INC	HL 
+			DEC	E 
+			JR	Z, 2F
+			CALL	SEND_ACK 
+			JR	1B
+2:			CALL	SEND_NACK 
+			CALL	SDA0
+			CALL	SCL1 
+			CALL	SDA1 
+			OR 	A		; Clear Carry 
+			LD 	HL, (RTC_SIG)
+			LD	DE, 585Ah	; Signature bytes must contain 'ZX'
+			SBC 	HL, DE
+			RET	Z		; Carry flag clear if OK
+			SCF			; Carry flag set if error
+			RET 
+
+SEND_DATA:		LD	H, 8		; # of bits
+SEND_DATA_LOOP:		RLC	L		; Next bit
+			LD	A, L
+			CALL 	SDA
+			CALL	PULSE_CLOCK
+			DEC	H
+			JR  	NZ, SEND_DATA_LOOP
+	
+WAIT_ACK:		CALL	SDA1		; Free the line to wait for the ACK
+			JR	PULSE_CLOCK
+
+READ:			CALL	SDA1		; Free the data line
+			LD	D, 8		; Let's read 8 bits
+READ_LOOP:		RLC	(HL)		; Next bit
+			CALL	SCL1		; Clock is high
+			LD	B, PORT_DATA	; Read the bit
+			IN	A,(C)
+			AND	1		; Is it 1??
+			JR	NZ, SET_BIT
+			RES	0,(HL)
+			JR	END_SET
+	
+SET_BIT:		SET 	0,(HL)
+	
+END_SET:		CALL 	SCL0		; Clock is low
+			DEC 	D
+			JR	NZ, READ_LOOP	; Go to next bit
+			RET			; Finish the byte read
+	
+SEND_NACK:		LD	A, 1
+			JR	SEND_ACK_NACK	
+
+SEND_ACK:		XOR	A 		
+SEND_ACK_NACK:		CALL 	SDA
+			call 	PULSE_CLOCK
+			JR 	SDA1		; Free the data line
+
+START_SEQUENCE:		LD	A, 1		 ;High in both i2c pins, before begin
+			LD	C, PORT
+			CALL 	SCL 
+			CALL 	SDA
+			CALL 	SDA0		; High to low when clock is high
+			JR	SCL		; Low the clock to start sending data
+		
+SDA0:			XOR	A 
+			JR	SDA
+	
+SDA1: 			LD	A, 1
+SDA: 			LD 	B, PORT_DATA
+			OUT 	(C), A
+			RET
+
+PULSE_CLOCK:		CALL 	SCL1
+SCL0:			XOR 	A
+			JR	SCL
+SCL1:			LD	A, 1
+SCL:			LD 	B, PORT_CLOCK
+			OUT 	(C), A
+			RET
+
+			ENDMODULE
