@@ -1,0 +1,81 @@
+;
+; Title:	BBC Basic for Spectrum Next - Miscellaneous helper functions
+; Author:	Dean Belfield
+; Created:	10/05/2021
+; Last Updated:	10/05/2021
+;
+; Modinfo:
+;
+
+; Read a hex string and convert to binary.
+;   Inputs: HL: Pointer in string buffer
+;  Outputs: HL: Updated text pointer
+;           DE: Value
+;            A: Terminator (spaces skipped)
+; Destroys: A,D,E,H,L,F
+;
+ASC_TO_HEX:    		IF	BUILD_Z80N
+			PUSH	BC
+			ENDIF 
+			LD      DE, 0		; Initialise DE
+       			CALL    SKIPSP		; Skip whitespace
+1:	   		LD      A, (HL)		; Get character
+        		CALL    UPPRC		; Convert to uppercase  
+ 			SUB	'0'		; Normalise to 0
+			JR 	C, 3F		; Return if < ASCII '0'
+			CP 	10		; Check if >= 10
+			JR 	C,2F
+			SUB 	7		; Adjust ASCII A-F to nibble
+			CP 	16		; Check for > F
+			JR 	NC, 3F		; Return
+2:	   		IF	BUILD_Z80N = 1
+			LD	B, 4		;  7 T-states
+			BSLA	DE, B		;  8 T-states
+			ELSE
+        		EX      DE,HL		;  4 T-states
+        		ADD     HL,HL		; 11 T-states * 4
+        		ADD     HL,HL
+        		ADD     HL,HL
+        		ADD     HL,HL
+        		EX      DE,HL		;  4 T-states = 48 T-states
+			ENDIF
+        		OR      E
+        		LD      E, A
+        		INC     HL
+        		JR      1B
+3:			IF	BUILD_Z80N
+			POP	BC
+			ENDIF
+;			JR	SKIPSP		; Fall through to SKIPSP
+
+; Skip a space
+; HL: Pointer in string buffer
+; 
+SKIPSP:			LD      A, (HL)
+        		CP      ' '
+        		RET     NZ
+        		INC     HL
+        		JR      SKIPSP	
+
+; Convert a character to upper case
+;  A: Character to convert
+;
+UPPRC:  		AND     7FH
+			CP      '`'
+			RET     C
+			AND     5FH		; CONVERT TO UPPER CASE
+			RET		
+
+; Convert BCD to ASCII
+; HL: Pointer in string buffer
+;  A: BCD number to convert
+;
+BCD_TO_ASC:		LD	C, A 		; Store A 
+			SWAPNIB			; Get high nibble
+			CALL	1F
+			LD	A, C 
+1:			AND	0x0F 
+			ADD 	A, '0'
+			LD	(HL), A 
+			INC	HL 
+			RET 
