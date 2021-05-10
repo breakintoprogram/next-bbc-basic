@@ -3,11 +3,12 @@
 ;		Spectrum Next Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	06/05/2021
-; Last Updated:	09/05/2021
+; Last Updated:	10/05/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Added Plot modes for Plot_ULA.
 ;		Plot_ULA now takes scroll position into account
+; 10/05/2021:	Fixed call to FillDMA in L2_Clear_Screen 
 
 			MODULE	NEXT_GRAPHICS 
 
@@ -151,7 +152,7 @@ L2_Clear_Screen:	LD	C, %00000011
 			PUSH	AF
 			LD	DE,0x0000
 			LD	BC,0x4000
-			CALL	FillDMA
+			CALL	NEXT_DMA.FillDMA
 			POP	AF
 			RET
 
