@@ -4,14 +4,17 @@
 ; Link:		https://www.specnext.com/the-zxndma/
 ; Modified By:	Dean Belfield
 ; Created:	22/08/2020
-; Last Updated:	22/08/2020
+; Last Updated:	10/05/2021
 ;
 ; Requires:
 ;
 ; Modinfo:
 ;
 ; 22/08/2020:	Minor formatting changes, renamed some labels
+; 10/05/2021:	Added MODULE assembler directives
 ;
+
+			MODULE	NEXT_DMA
 
 DMA_RESET 			EQU 0xc3
 DMA_RESET_PORT_A_TIMING 	EQU 0xc7
@@ -94,3 +97,5 @@ TransferDMA_Dest:	DW 0 			; R4-Dest address (destination address)
 			DB DMA_ENABLE 		; R6-Enable DMA
 
 TransferDMA_Code_Len:	EQU $-TransferDMA_Code
+
+			ENDMODULE
