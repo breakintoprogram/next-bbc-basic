@@ -2,10 +2,10 @@
 ; Title:	BBC Basic for Spectrum Next - Main build file
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	02/05/2021
+; Last Updated:	10/05/2021
 ;
 ; Modinfo:
-;
+; 10/05/2021:	Moved Next specific RAM declarations into ram.z80 and tidied up a bit
 
 			SLDOPT COMMENT WPMEM, LOGPOINT, ASSERTION
 			
@@ -13,7 +13,9 @@
 
 ; Assembly flags
 ;
+BUILD_ROM		EQU	0			; Set to 1 to build a ROM image
 BUILD_EMULATOR		EQU	1			; Set to 1 to build for ZEsarUX; adds various bodges in
+BUILD_Z80N		EQU	1			; Set to 1 to use Z80N optimized code in R.T.Russell's code
 
 			IF	BUILD_EMULATOR = 1	
 ULA_X_SCROLL		EQU	0x32			; ZEsarUX 9.2 incorrectly implements ULA scrolling registers
@@ -30,15 +32,24 @@ Code_Start		EQU	0x6000
 
 			ORG 	Code_Start
 
-			include "macros.z80"
-
-			include "next_init.z80"
-			include "next_dos.z80"
-			include "next_debug.z80"
-			include "next_io.z80"
-			include "next_graphics.z80"
-			include "next_dma.z80"
-
+			include "macros.z80"		; Useful macros
+;
+; Spectrum Next specific code
+; 
+			include "next_init.z80"		; Spectrum Next initialisation
+			include "next_dos.z80"		; File I/O
+			include "next_debug.z80"	; Debug routines
+			include "next_io.z80"		; Screen and keyboard I/O
+			include "next_graphics.z80"	; Bitmap graphics 
+			include "next_dma.z80"		; Spectrum Next DMA routines
+			include "next_rtc.z80"		; Spectrum Next Real Time Clock routines
+;
+; Other generic Z80N helper functions
+;
+			include "misc.z80"
+;
+; BBC BASIC for Z80 core code
+;
 			include "main.z80"
 			include "exec.z80"
 			include "eval.z80"
@@ -46,21 +57,6 @@ Code_Start		EQU	0x6000
 			include "sorry.z80"
 			include "patch.z80"
 			include "ram.z80"
-;
-; Extra Next-implementation specific system variables
-;
-@FLAGS:			DEFS	1			; Flags: B7=ESC PRESSED, B6=ESC DISABLED, B5:Capslock
-@VIDEO_MODE:		DEFB	0
-@CHARPOS_X:		DEFB	0
-@CHARPOS_Y:		DEFB	0
-@PLOTPOS_X:		DEFW	0
-@PLOTPOS_Y:		DEFW	0
-@SCRLPOS_Y:		DEFB	0
-@PLOT_MODE:		DEFB	0
-@PLOT_COLOUR:		DEFB	%01000111
-@KEYCODE:		DEFB	0
-@TIME:			DEFW	0, 0	
-@TEXT_COLOUR:		DEFB	%01000111
 
 @USER:  		SAVENEX OPEN "Z80/BBC Basic/build.nex", Code_Start, Stack_Top
 			SAVENEX CORE 3, 0, 0
