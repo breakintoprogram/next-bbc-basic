@@ -6,7 +6,7 @@ These releases are compiled on an ad-hoc basis and have been tested on the MiSTe
 For the latter, please use the nex file that ends in "_em"; this binary is assembled slightly differently to get around some bugs in the emulator, namely ULA hardware scrolling.
 
 ##### 20210513: Version 0.02
-- Added Z80N instrructions to Z80 assembler - see test_assembler_Z80N.bbc for example test code
+- Added Z80N instrructions to Z80 assembler - see [test_assembler_Z80N.bbc](../tests/test_assembler_Z80N.bbc) for example test code
 - Bug fixes
 
 ##### 20210510: Version 0.01
