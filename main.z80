@@ -4,12 +4,13 @@
 ; Author:	(C) Copyright  R.T.Russell  1984
 ; Modified By:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	05/05/2021
+; Last Updated:	13/05/2021
 ;
 ; Modinfo:
 ; 07/05/1984:	Version 2.3
 ; 01/03/1987:	Version 3.0
 ; 02/05/2021:	Modified by Dean Belfield to assemble with SJASMPLUS
+; 13/05/2021	Fixed (C) sign in boot message - removed Spectrum (C) symbol
 ;
 			MODULE MAIN
 ;
@@ -77,8 +78,7 @@ PURGE:			LD      (HL),A          ;CLEAR SCRATCHPAD
 			JP      NZ,CHAIN0       ;AUTO-RUN
 			CALL    TELL
 			DEFM    "BBC BASIC (Z80) Version 3.00\n\r"
-NOTICE:			DEFB	0x7F		; Spectrum (C) Symbol
-			DEFM    " Copyright R.T.Russell 1987\n\r"
+NOTICE:			DEFM    "(C) Copyright R.T.Russell 1987\n\r"
 			DEFM	"\n\r"
 			DEFB    0
 @WARM:			DEFB    0F6H
