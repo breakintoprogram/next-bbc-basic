@@ -3,10 +3,12 @@
 ;		Spectrum Next I/O Routines
 ; Author:	Dean Belfield
 ; Created:	03/05/2021
-; Last Updated:	10/05/2021
+; Last Updated:	13/05/2021
 ;
 ; Modinfo:
 ; 10/05/2021:	Started implementing VDU engine
+; 11/05/2021:	Fixed bug in Scroll_Down
+; 13/05/2021:	Removed (C) symbol from keytable; 0x7F is now backspace
 ;
 			MODULE	NEXT_IO
 
@@ -23,8 +25,15 @@ Clear_Screen:		LD 	A, (TEXT_COLOUR)
 			LDIR				; Copy this byte to the second, and so on
 			XOR	A 
 			LD	(SCRLPOS_Y), A 
+			LD	(CHARPOS_X), A 
+			LD	(CHARPOS_Y), A
 			NEXTREG	ULA_Y_SCROLL, A 
 			RET
+
+; Set the video mode
+;
+Set_Video_Mode:		LD	(VIDEO_MODE), A 
+			JR	Clear_Screen
 
 ; Read the keyboard and return an ASCII character code
 ; Returns:
@@ -198,6 +207,7 @@ TABLE_VDU_EXEC:		DW	VDU_EXEC_PLOT
 			DW	VDU_EXEC_COLOUR
 			DW	VDU_EXEC_GCOL 
 			DW	VDU_EXEC_TAB 
+			DW	VDU_EXEC_MODE
 
 ; PLOT: VDU 25,mode,x;y;
 ;
@@ -212,12 +222,22 @@ VDU_EXEC_PLOT:		LD	A, (VDU_BUFFER + 0)	; Plot style in B
 
 ; COLOUR: VDU 17,colour
 ;
-VDU_EXEC_COLOUR:	LD	A, (VDU_BUFFER + 0)
+VDU_EXEC_COLOUR:	LD	A, (VDU_PTR)		; Check number of parameters
+			DEC	A			; If not zero then
+			JR	NZ, 1F			; It's VDU 19, c, r, g, b
+			LD	A, (VDU_BUFFER + 0)	; Otherwise it's just VDU 17, c
 			LD	L, A
 			LD	A, (TEXT_COLOUR)
 			CALL	Get_ULA_Colour
 			LD	(TEXT_COLOUR), A
-			RET 
+1:			LD	A, (VDU_BUFFER + 1)	; Get the R component
+			LD	B, A 
+			LD	A, (VDU_BUFFER + 2)	; Get the G component
+			LD	C, A 
+			LD	A, (VDU_BUFFER + 3)	; Get the B component
+			LD	D, A
+			LD	A, (VDU_BUFFER + 0)	; Get the palette colour to change
+			JP	NEXT_GRAPHICS.Set_Palette_RGB
 
 ; GCOL: VDU 18,mode,,colour
 ;
@@ -238,6 +258,11 @@ VDU_EXEC_TAB:		LD	A, (VDU_BUFFER + 0)
 			LD	(CHARPOS_Y), A
 			RET 
 
+; MODE: VDU 16,mode
+;
+VDU_EXEC_MODE:		LD	A, (VDU_BUFFER + 0)
+			JP 	Set_Video_Mode
+
 ; Lookup table of VDU codes
 ;
 TABLE_VDU:		DW 	VDU_NUL			; &00 NUL - Do nothing
@@ -257,13 +282,13 @@ TABLE_VDU:		DW 	VDU_NUL			; &00 NUL - Do nothing
 			DW	VDU_NUL			; &0E SO  - Page mode on
 			DW	VDU_NUL			; &0F SI  - Page mode off
 			DW	VDU_NUL			; &10 DLE - Clear graphcs area (CLG)
-			DW	VDU_DC1			; &11 DC1 - Define text colour (COLOR n)
+			DW	VDU_DC1			; &11 DC1 - Define text colour (COLOUR n)
 			DW	VDU_DC2			; &12 DC2 - Define graphics colour (GCOL a, n)
-			DW	VDU_NUL			; &13 DC3 - Define logical colour (COLOUR l, p)
+			DW	VDU_DC3			; &13 DC3 - Define logical colour (COLOUR l, r, g, b)
 			DW	VDU_NUL			; &14 DC4 - Restore logical colours
 			DW	VDU_NUL			; &15 NAK - Disable VDU drivers or delete current line
-			DW	VDU_NUL			; &16 SYN - Select screen mode (MODE n)
-			DW	VDU_NUL			; &17 ETB - Define display character and other commands; used by ON and OFF
+			DW	VDU_SYN			; &16 SYN - Select screen mode (MODE n)
+			DW	VDU_ETB			; &17 ETB - Define display character and other commands; used by ON and OFF
 			DW	VDU_NUL			; &18 CAN - Define graphics windows
 			DW	VDU_EM			; &19 EM  - PLOT k, x, y (used by MOVE, DRAW, etc)
 			DW	VDU_NUL			; &1A SUB - Restore default windows
@@ -318,8 +343,7 @@ VDU_VT:			LD	A, (CHARPOS_Y)
 
 ; &0C FF  - CLS
 ;
-VDU_FF:			CALL	VDU_RS
-			JP 	Clear_Screen
+VDU_FF:			JP 	Clear_Screen
 
 
 ; &0D CR  - Carriage Return
@@ -328,7 +352,7 @@ VDU_CR:			XOR	A
 			LD 	(CHARPOS_X), A
 			RET 
 
-; &11 DC1 - COLOR n
+; &11 DC1 - COLOUR n
 ;
 VDU_DC1:		LD	B, 1			; 1 byte (colour)
 			LD	A, 2 			; State 2: COLOUR
@@ -339,6 +363,21 @@ VDU_DC1:		LD	B, 1			; 1 byte (colour)
 VDU_DC2:		LD	B, 2 			; 2 bytes (mode, colour)
 			LD	A, 3 			; State 3: GCOL
 			JR	VDU_SET_STATE
+
+; &12 DC3 - COLOUR a, r, g, b
+;
+VDU_DC3:		LD	B, 4			; 4 bytes (colour, r, g, b)
+			LD	A, 2 			; State 2: COLOUR
+			JR	VDU_SET_STATE
+
+; &16 SYN - MODE n
+VDU_SYN:		LD	B, 1			; 1 byte (colour)
+			LD	A, 5 			; State 5: MODE
+			JR	VDU_SET_STATE
+
+; &17 ETB - Define display character and other commands; used by ON and OFF
+;
+VDU_ETB:		RET 
 
 ; &19 EM  - PLOT k, x, y
 ;
@@ -372,15 +411,17 @@ VDU_SET_STATE:		LD	(VDU_STATE), A
 
 ; Next hardware scroll down
 ;
-Scroll_Down:		LD	A, (SCRLPOS_Y)
+Scroll_Down:		LD	H, 0			; Line to clear after scroll
+			LD	A, (SCRLPOS_Y)
 			DEC 	A 
-			RET	P
+			JP 	P, 3F
 			LD	A, 23
 			JR	3F
 
 ; Next hardware scroll up
 ;
-Scroll_Up:		LD	A, (SCRLPOS_Y)
+Scroll_Up:		LD	H, 23			; Line to clear after scroll
+			LD	A, (SCRLPOS_Y)
 			INC	A 
 			CP	24
 			JR	C, 3F
@@ -390,13 +431,11 @@ Scroll_Up:		LD	A, (SCRLPOS_Y)
 			SLA 	A 
 			SLA 	A 
 			NEXTREG	ULA_Y_SCROLL, A 
-			LD	A, (CHARPOS_Y)
 
 ; Clear a line
-;  A: Line to clear
+;  H: Line to clear
 ;
-Clear_Line:		LD	H, A
-			LD 	L, 0
+Clear_Line:		LD 	L, 0
 			CALL	Get_Charpos_1
 			CALL	ULA_Get_Char_Address
 			PUSH	HL
@@ -538,7 +577,7 @@ KeyTable_SS_Alpha:	DB	"~", "*", "?", $5C
 			DB	$00, "{", "}", "^"
 			DB	$00, "-", "+", "="
 			DB	".", ",", ";", $22
-			DB	$7F, "<", "|", ">"
+			DB	$00, "<", "|", ">"
 			DB	"]", "/", $00, $60
 			DB	"[", ":"
 
