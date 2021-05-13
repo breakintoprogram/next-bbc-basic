@@ -92,18 +92,21 @@ I'll dump significant updates as executable nex files in the releases folder
 
 This code is distributable under the terms of a zlib license. Read the file COPYING for more information.
 
-The code, as provided by David Given (dg@colark.com), and originally written by
-R.T. Russell has been modified slightly to compile in sjasmplus, and the CPMish
-code has been removed as this version is not going to run CP/M.
+The code, as originally written by R.T. Russell and provided by David Given (dg@colark.com), has been modified slightly, either for compatibility reasons when assembling using sjasmplus, or for development reasons for this release:
 
-- GLOBAL and EXPORT directives have been removed and any global labels prefixed with @
-- All source in z80 files is now enclosed in MODULES to prevent label clash
-- A handful of '"' values have been converted to 34, and commented with ASCII '"'
-- The patch file has been modified
-	- The function PUT has been moved from exec to patch
-	- The function GET has been moved from eval to patch
-- A build.z80 file has been added; this includes all other files and is the file to build
-- The top-of-file comments have been tweaked to match my style
+- General changes:
+	- The top-of-file comments have been tweaked to match my style
+	- GLOBAL and EXPORT directives have been removed and any global labels prefixed with @
+	- Source in z80 now enclosed in MODULES to prevent label clash
+	- A handful of '"' values have been converted to 34, and commented with ASCII '"'
+	- A build.z80 file has been added; this includes all other files and is the file to build
+	- All CPMish code has been removed as this version is not going to run on CP/M
+- File patch.z80
+	- The function PUT has been moved into it from exec.z80 
+	- The function GET has been moved into it from eval.z80
+- File exec.z80
+	- The built-in assembler has bee modified to support Z80N instructions
+	- The assembler opcodes table now uses a macro for sake of clarity
 
 Other than that, the source code is equivalent to the code originally authored by R.T.Russell, downloaded on David Given's website: 
 
