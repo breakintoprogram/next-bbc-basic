@@ -4,7 +4,7 @@
 ; Author:	(C) Copyright  R.T.Russell  1984
 ; Modified By:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	05/05/2021
+; Last Updated:	13/05/2021
 ;
 ; Modinfo:
 ; 27/01/1984:	Version 2.1
@@ -12,6 +12,7 @@
 ; 11/06/1987:	Version 3.1
 ; 02/05/2021:	Modified by Dean Belfield to assemble with SJASMPLUS
 ; 05/05/2021:	Moved PUT to patch.z80
+; 13/05/2021:	Added Z80N instructions to OPCODS and used OPCODE macro to make it a bit easier to understand
 ;
 
 			MODULE EXEC
@@ -1874,7 +1875,7 @@ ASSEM5:			POP     HL              ;OLD PC
 			CP      E
 			JR      Z,ASSEM2
 ASSEM1:			LD      A,(COUNT)
-			CP      17
+			CP      31		;DB: Was 17
 			LD      A,5
 			CALL    NC,TABIT        ;NEXT LINE
 			LD      A,(IX)
@@ -1882,7 +1883,7 @@ ASSEM1:			LD      A,(COUNT)
 			INC     IX
 			DEC     E
 			JR      NZ,ASSEM1
-ASSEM2:			LD      A,18
+ASSEM2:			LD      A,32		;DB: Was 18
 			CALL    TABIT
 			PUSH    IY
 			POP     HL
@@ -1957,7 +1958,7 @@ ASMB1:			CALL    SKIP
 			JR      NC,GROUP2
 			CP      15-39
 			CALL    NC,ED
-			JR      BYTE0
+			JP      BYTE0
 ;
 ;GROUP 2 - BIT, RES, SET
 ;GROUP 3 - RLC, RRC, RL, RR, SLA, SRA, SRL
@@ -1970,15 +1971,22 @@ GROUP2:			SUB     10
 			CALL    REGLO
 			RET     C
 			CALL    CB
-			JR      BYTE0
+			JP      BYTE0
 ;
 ;GROUP 4 - PUSH, POP, EX (SP)
 ;
 GROUP4:			SUB     3
 			JR      NC,GROUP5
 G4:			CALL    PAIR
-			RET     C
-			JR      BYTE0
+			JP      NC, BYTE0	; If it's a register pair, write that out
+			CALL	ED
+			LD	A, 8AH 		; Z80N PUSH imm
+			CALL	BYTE
+			CALL	NUMBER 
+			LD	A,L 		; For some reason this command is big-endian
+			LD	L,H 		; so swap the byte order around
+			LD	H,A 
+			JP	VAL16		; And write it out
 ;
 ;GROUP 5 - SUB, AND, XOR, OR, CP
 ;GROUP 6 - ADD, ADC, SBC
@@ -1987,19 +1995,48 @@ GROUP5:			SUB     8+2
 			JR      NC,GROUP7
 			CP      5-8
 			LD      B,7
-			CALL    NC,OPND
-			LD      A,B
-			CP      7
-			JR      NZ,G6HL
-G6:			CALL    REGLO
+			CALL    NC,OPND		; Get the first operand
+			LD      A,B		
+			CP      7		; Is the operand 'A"
+			JR      NZ,G6HL		; No, so check for HL, IX or IY
+G6:			CALL    REGLO		; Handle ADD A, ?
 			LD      A,C
 			JR      NC,BIND1
 			XOR     46H
 			CALL    BIND
 DB:			CALL    NUMBER
-			JR      VAL8
+			JP      VAL8
 ;
-G6HL:			AND     3FH
+G6HL:			TEST	0C0H		; Is the first operand IX or IY?
+			JR	NZ, G6HL1	; Yes, so just do the normal workflow
+			CALL	PAIR1 		; Is the first operand a pair?
+			RET 	C		; No, so return
+			LD	D, B		; Copy first operand to D
+			CALL	OPND		; Assuming HL, DE or BC...
+			CP	7		; Is the second operand "A"?
+			LD	E, 31H		; Opcode offset for ??,A
+			JR	Z, G6HLZ80N	; Yes, so do Z80N opcode ADD ??,A
+			LD	C, 9		; This is used to generate correct opcode in SHL3
+			CALL	PAIR1		; Is the second operand a pair?
+			JR	NC, BYTE0  	; Yes, so write that byte out
+			LD	A, D		; Get first opcode
+			LD	E, 034H		; Opcode offset for ??,imm
+			CALL	G6HLZ80N
+			RET	C 		; Ret if there has been an error
+			JP	ADDR		; And write it out
+;
+; Z80N: ADD RR, A where RR is HL, DE or BC
+;
+G6HLZ80N:		LD	A, 00CH		; HL's operand code
+			SUB	D 		; Get the first operand 
+			RET	C		; Return with carry if not HL, DE, BC
+			RRA 			; Convert to opcode
+			ADD	E 
+			LD	C, A
+			CALL	ED		; Prefixed with FD
+			JR	BYTE0		; This clears the carry flag
+;
+G6HL1:			AND     3FH
 			CP      12
 			SCF
 			RET     NZ
@@ -2028,7 +2065,7 @@ BIND1:			JP      NC,BIND
 			CALL    PAIR1
 			RET     C
 BYTE0:			LD      A,C
-			JR      BYTE2
+			JP      BYTE2
 ;
 ;GROUP 8 - IN
 ;GROUP 9 - OUT
@@ -2089,6 +2126,9 @@ GROUPB:			LD      B,A
 			JR      NC,GRPB
 			LD      A,B
 			AND     3FH
+			CP	020H		; Check for Z80N JP (C)
+			LD	C,98H		; 
+			JP	Z,EDBYTE	; Jump to EDBYTE with correct opcode	
 			CP      6
 			LD      A,0E9H
 			JR      Z,BYTE2
@@ -2127,7 +2167,9 @@ GRPE:			CALL    COND
 ;
 ;GROUP 15 - LD
 ;
-GROUPF:			DJNZ    MISC
+GROUPF:			LD	A, B
+			DEC	A 
+			JP	NZ, GROUPZ80N
 			CALL    LDOP
 			JR      NC,LDA
 			CALL    REGHI
@@ -2157,7 +2199,7 @@ LDIN:			EX      AF,AF'
 			CALL    NC,REGLO
 			LD      A,C
 			POP     BC
-			JR      NC,BIND
+			JP      NC,BIND
 			LD      C,0AH
 			CALL    PAIR1
 			CALL    LD16
@@ -2186,7 +2228,7 @@ OPT:			DEC     B
 LDA:			CP      4
 			CALL    C,ED
 			LD      A,B
-BYTE1:			JR      BYTE
+BYTE1:			JP      BYTE
 ;
 ;MISC - DEFB, DEFW, DEFM
 ;
@@ -2203,6 +2245,42 @@ DEFM1:			XOR     A
 			CALL    BYTE
 			DEC     E
 			JR      DEFM1
+;
+; Group 16: Additional Spectrum Next specific Z80N instructions
+;
+GROUPZ80N:		SUB	20		; Number of opcodes in Z80N Group
+			LD	B, A
+			JR	NC, MISC
+			LD	A, C
+			CP	27H		; Check for TEST opcode
+			JR	Z, GROUPZ80N1	; Branch to that
+			CP	91H		; Check for NEXTREG opcod
+			JR	Z, GROUPZ80N2	; Branch to that
+;			
+EDBYTE:			CALL    ED		; All Z80N opcodes with no operands
+			JP      BYTE0
+;
+GROUPZ80N1:		CALL	EDBYTE		; Z80N: TEST
+			CALL	NUMBER 
+			JP 	VAL8 
+GROUPZ80N2:		LD	D, C 		; Z80N: NEXTREG - Store the opcode in D
+			CALL	NUMBER		; Get first operand; always immediate
+			CALL	OPND		; Get second operand
+			LD	C, D 		; Get the opcode back
+			JR	C, GROUPZ80N3	; If error, assume second operand is a number
+			LD	A, B 		; Get the operand
+			CP 	7		; Is it 'A"
+			RET	NZ 
+			INC	C 		; Increment it to 0x92
+			CALL	EDBYTE		; Write out ED opcode
+			LD	A, L 		; Write out the value
+			JP	VAL8 
+GROUPZ80N3:		CALL	EDBYTE		; Write out ED opcode
+			LD	A, L		; Write out first value
+			CALL	VAL8 
+			CALL	NUMBER 		; Get the second immediate value
+			JP	VAL8		; And write that out
+
 ;
 ;SUBROUTINES:
 ;
@@ -2391,375 +2469,181 @@ SIGN:			CP      '+'
 			CP      '-'
 			RET
 ;
-;.XLIST
-OPCODS:			DEFM    'NO'
-			DEFB    'P'+80H
-			DEFB    0
-			DEFM    'RLC'
-			DEFB    'A'+80H
-			DEFB    7
-			DEFM    'EX'
-			DEFB    0
-			DEFM    'AF'
-			DEFB    0
-			DEFM    'AF'
-			DEFB    ''''+80H
-			DEFB    8
-			DEFM    'RRC'
-			DEFB    'A'+80H
-			DEFB    0FH
-			DEFM    'RL'
-			DEFB    'A'+80H
-			DEFB    17H
-			DEFM    'RR'
-			DEFB    'A'+80H
-			DEFB    1FH
-			DEFM    'DA'
-			DEFB    'A'+80H
-			DEFB    27H
-			DEFM    'CP'
-			DEFB    'L'+80H
-			DEFB    2FH
-			DEFM    'SC'
-			DEFB    'F'+80H
-			DEFB    37H
-			DEFM    'CC'
-			DEFB    'F'+80H
-			DEFB    3FH
-			DEFM    'HAL'
-			DEFB    'T'+80H
-			DEFB    76H
-			DEFM    'EX'
-			DEFB    'X'+80H
-			DEFB    0D9H
-			DEFM    'EX'
-			DEFB    0
-			DEFM    'DE'
-			DEFB    0
-			DEFM    'H'
-			DEFB    'L'+80H
-			DEFB    0EBH
-			DEFM    'D'
-			DEFB    'I'+80H
-			DEFB    0F3H
-			DEFM    'E'
-			DEFB    'I'+80H
-			DEFB    0FBH
+; Z80 opcode list - uses OPCODE macro in macros.z80 for clarity
 ;
-			DEFM    'NE'
-			DEFB    'G'+80H
-			DEFB    44H
-			DEFM    'IM'
-			DEFB    0
-			DEFB    '0'+80H
-			DEFB    46H
-			DEFM    'RET'
-			DEFB    'N'+80H
-			DEFB    45H
-			DEFM    'RET'
-			DEFB    'I'+80H
-			DEFB    4DH
-			DEFM    'IM'
-			DEFB    0
-			DEFB    '1'+80H
-			DEFB    56H
-			DEFM    'IM'
-			DEFB    0
-			DEFB    '2'+80H
-			DEFB    5EH
-			DEFM    'RR'
-			DEFB    'D'+80H
-			DEFB    67H
-			DEFM    'RL'
-			DEFB    'D'+80H
-			DEFB    6FH
-			DEFM    'LD'
-			DEFB    'I'+80H
-			DEFB    0A0H
-			DEFM    'CP'
-			DEFB    'I'+80H
-			DEFB    0A1H
-			DEFM    'IN'
-			DEFB    'I'+80H
-			DEFB    0A2H
-			DEFM    'OUT'
-			DEFB    'I'+80H
-			DEFB    0A3H
-			DEFM    'LD'
-			DEFB    'D'+80H
-			DEFB    0A8H
-			DEFM    'CP'
-			DEFB    'D'+80H
-			DEFB    0A9H
-			DEFM    'IN'
-			DEFB    'D'+80H
-			DEFB    0AAH
-			DEFM    'OUT'
-			DEFB    'D'+80H
-			DEFB    0ABH
-			DEFM    'LDI'
-			DEFB    'R'+80H
-			DEFB    0B0H
-			DEFM    'CPI'
-			DEFB    'R'+80H
-			DEFB    0B1H
-			DEFM    'INI'
-			DEFB    'R'+80H
-			DEFB    0B2H
-			DEFM    'OTI'
-			DEFB    'R'+80H
-			DEFB    0B3H
-			DEFM    'LDD'
-			DEFB    'R'+80H
-			DEFB    0B8H
-			DEFM    'CPD'
-			DEFB    'R'+80H
-			DEFB    0B9H
-			DEFM    'IND'
-			DEFB    'R'+80H
-			DEFB    0BAH
-			DEFM    'OTD'
-			DEFB    'R'+80H
-			DEFB    0BBH
+; Group 0:
 ;
-			DEFM    'BI'
-			DEFB    'T'+80H
-			DEFB    40H
-			DEFM    'RE'
-			DEFB    'S'+80H
-			DEFB    80H
-			DEFM    'SE'
-			DEFB    'T'+80H
-			DEFB    0C0H
+OPCODS:			OPCODE	0x00, "NOP"
+			OPCODE 	0x07, "RLCA"
+			OPCODE	0x08, "EX\0AF\0AF'"
+			OPCODE	0x0F, "RRCA"
+			OPCODE	0x17, "RLA"
+			OPCODE	0x1F, "RRA"
+			OPCODE	0x27, "DAA"
+			OPCODE	0x2F, "CPL"
+			OPCODE	0x37, "SCF"
+			OPCODE	0x3F, "CCF"
+			OPCODE	0x76, "HALT"
+			OPCODE	0xD9, "EXX"
+			OPCODE	0xEB, "EX\0DE\0HL"
+			OPCODE	0xF3, "DI"
+			OPCODE	0xFB, "EI"
+; Group 1:
+			OPCODE	0x44, "NEG"
+			OPCODE	0x46, "IM\00"
+			OPCODE	0x45, "RETN"
+			OPCODE	0x4D, "RETI"
+			OPCODE	0x56, "IM\01"
+			OPCODE	0x5E, "IM\02"
+			OPCODE	0x67, "RRD"
+			OPCODE	0x6F, "RLD"
+			OPCODE	0xA0, "LDI"
+			OPCODE	0xA1, "CPI"
+			OPCODE	0xA2, "INI"
+			OPCODE	0xA3, "OUTI"
+			OPCODE	0xA8, "LDD"
+			OPCODE	0xA9, "CPD"
+			OPCODE	0xAA, "IND"
+			OPCODE	0xAB, "OUTD"
+			OPCODE	0xB0, "LDIR"
+			OPCODE	0xB1, "CPIR"
+			OPCODE	0xB2, "INIR"
+			OPCODE	0xB3, "OTIR"
+			OPCODE	0xB8, "LDDR"
+			OPCODE	0xB9, "CPDR"
+			OPCODE	0xBA, "INDR"
+			OPCODE	0xBB, "OTDR"
+; Group 2
+			OPCODE	0x40, "BIT"
+			OPCODE	0x80, "RES"
+			OPCODE	0xC0, "SET"
+; Group 3
+			OPCODE	0x00, "RLC"
+			OPCODE	0x08, "RRC"
+			OPCODE	0x10, "RL"
+			OPCODE	0x18, "RR"
+			OPCODE	0x20, "SLA"
+			OPCODE	0x28, "SRA"
+			OPCODE	0x38, "SRL"
+; Group 4
+			OPCODE	0xC1, "POP"
+			OPCODE	0xC5, "PUSH"
+			OPCODE	0xE3, "EX\0(SP"
+; Group 5
+			OPCODE	0x90, "SUB"
+			OPCODE	0xA0, "AND"
+			OPCODE	0xA8, "XOR"
+			OPCODE	0xB0, "OR"
+			OPCODE	0xB8, "CP"
+			OPCODE	0xA0, TAND
+			OPCODE	0xB0, TOR
+; Group 6
+			OPCODE	0x80, "ADD"
+			OPCODE	0x88, "ADC"
+			OPCODE	0x98, "SBC"
+; Group 7
+			OPCODE	0x04, "INC"
+			OPCODE	0x05, "DEC"
+; Group 8 
+			OPCODE	0x40, "IN"
+; Group 9
+			OPCODE	0x41, "OUT"
+; Group 10
+			OPCODE	0x20, "JR"
+			OPCODE	0x10, "DJNZ"
+; Group 11
+			OPCODE	0xC2, "JP"
+; Group 12
+			OPCODE	0xC4, "CALL"
+; Group 13
+			OPCODE	0xC7, "RST"
+; Group 14
+			OPCODE	0xC0, "RET"
+; Group 15
+			OPCODE	0x40, "LD"
+; Group Z80N (20)
+			OPCODE	0x23, "SWAP"		; SWAPNIB	
+			OPCODE	0x24, "MIRR\0A"		; MIRROR
+			OPCODE	0x27, "TEST"		; TEST $im8
+			OPCODE	0x28, "BSLA\0DE\0B"
+			OPCODE	0x29, "BSRA\0DE\0B"
+			OPCODE	0x2A, "BSRL\0DE\0B"
+			OPCODE	0x2B, "BSRF\0DE\0B"
+			OPCODE	0x2C, "BRLC\0DE\0B"
+			OPCODE	0x30, "MUL\0D\0E"
+			OPCODE	0x90, "OTIB"		; OUTINB
+			OPCODE	0x91, "NREG"		; NEXTREG $im8,$im8
+			OPCODE	0x93, "PXDN"		; PIXELDN
+			OPCODE	0x94, "PXAD"		; PIXELAD
+			OPCODE	0x95, "STAE"		; SETAE
+			OPCODE	0xA4, "LDIX"
+			OPCODE	0xA5, "LDWS"
+			OPCODE	0xAC, "LDDX"
+			OPCODE	0xB4, "LIRX"		; LDIRX
+			OPCODE	0xB7, "LPRX"		; LDPIRX
+			OPCODE	0xBC, "LDRX"		; LDDRX
 ;
-			DEFM    'RL'
-			DEFB    'C'+80H
-			DEFB    0
-			DEFM    'RR'
-			DEFB    'C'+80H
-			DEFB    8
-			DEFM    'R'
-			DEFB    'L'+80H
-			DEFB    10H
-			DEFM    'R'
-			DEFB    'R'+80H
-			DEFB    18H
-			DEFM    'SL'
-			DEFB    'A'+80H
-			DEFB    20H
-			DEFM    'SR'
-			DEFB    'A'+80H
-			DEFB    28H
-			DEFM    'SR'
-			DEFB    'L'+80H
-			DEFB    38H
-;
-			DEFM    'PO'
-			DEFB    'P'+80H
-			DEFB    0C1H
-			DEFM    'PUS'
-			DEFB    'H'+80H
-			DEFB    0C5H
-			DEFM    'EX'
-			DEFB    0
-			DEFM    '(S'
-			DEFB    'P'+80H
-			DEFB    0E3H
-;
-			DEFM    'SU'
-			DEFB    'B'+80H
-			DEFB    90H
-			DEFM    'AN'
-			DEFB    'D'+80H
-			DEFB    0A0H
-			DEFM    'XO'
-			DEFB    'R'+80H
-			DEFB    0A8H
-			DEFM    'O'
-			DEFB    'R'+80H
-			DEFB    0B0H
-			DEFM    'C'
-			DEFB    'P'+80H
-			DEFB    0B8H
-			DEFB    TAND
-			DEFB    0A0H
-			DEFB    TOR
-			DEFB    0B0H
-;
-			DEFM    'AD'
-			DEFB    'D'+80H
-			DEFB    80H
-			DEFM    'AD'
-			DEFB    'C'+80H
-			DEFB    88H
-			DEFM    'SB'
-			DEFB    'C'+80H
-			DEFB    98H
-;
-			DEFM    'IN'
-			DEFB    'C'+80H
-			DEFB    4
-			DEFM    'DE'
-			DEFB    'C'+80H
-			DEFB    5
-;
-			DEFM    'I'
-			DEFB    'N'+80H
-			DEFB    40H
-			DEFM    'OU'
-			DEFB    'T'+80H
-			DEFB    41H
-;
-			DEFM    'J'
-			DEFB    'R'+80H
-			DEFB    20H
-			DEFM    'DJN'
-			DEFB    'Z'+80H
-			DEFB    10H
-;
-			DEFM    'J'
-			DEFB    'P'+80H
-			DEFB    0C2H
-;
-			DEFM    'CAL'
-			DEFB    'L'+80H
-			DEFB    0C4H
-;
-			DEFM    'RS'
-			DEFB    'T'+80H
-			DEFB    0C7H
-;
-			DEFM    'RE'
-			DEFB    'T'+80H
-			DEFB    0C0H
-;
-			DEFM    'L'
-			DEFB    'D'+80H
-			DEFB    40H
-;
-			DEFB    DEF AND 7FH
-			DEFB    'M'+80H
+; In Group 6		OPCODE	0x31, "ADD\0HL\0A"
+; In Group 6		OPCODE	0x32, "ADD\0DE\0A"
+; In Group 6		OPCODE	0x33, "ADD\0BC\0A"
+; In Group 6		OPCODE	0x34, "ADD\0HL"		; ADD HL,$im16
+; In Group 6		OPCODE	0x35, "ADD\0DE"		; ADD DE,$im16
+; In Group 6		OPCODE	0x36, "ADD\0BC"		; ADD BC,$im16
+; In Group 4		OPCODE	0x8A, "PUSH"		; PUSH $im16
+; In Group B		OPCODE	0x98, "JP\0(C)"
+; In Group 16		OPCODE	0x92, "NREG"		; NEXTREG $im8,A
+
+; Assembler directives		
+			DEFB    DEF AND 7FH, 'M'+80H, 0	; DEFM
+			DEFB    DEF AND 7FH, 'B'+80H, 0	; DEFB
+			OPCODE  0x00, "OPT"
+			DEFB    DEF AND 7FH, 'W'+80H, 0 ; DEFW
+
 			DEFB    0
 ;
-			DEFB    DEF AND 7FH
-			DEFB    'B'+80H
-			DEFB    0
+; Operands
 ;
-			DEFM    'OP'
-			DEFB    'T'+80H
-			DEFB    0
+OPRNDS:			OPCODE	0x00, "B"
+			OPCODE	0x01, "C"
+			OPCODE	0x02, "D"
+			OPCODE	0x03, "E"
+			OPCODE	0x04, "H"
+			OPCODE	0x05, "L"
+			OPCODE	0x06, "(HL)"
+			OPCODE	0x07, "A"
+			OPCODE	0x86, "(IX)"
+			OPCODE	0xC6, "(IY)"
 ;
-			DEFB    DEF AND 7FH
-			DEFB    'W'+80H
-			DEFB    0
+			OPCODE	0x08, "BC"
+			OPCODE	0x0A, "DE"
+			OPCODE	0x0C, "HL"
+			OPCODE	0x8C, "IX"	; Bit 7 set
+			OPCODE	0xCC, "IY"	; Bit 6 and 7 set
+			OPCODE	0x0E, "AF"
+			OPCODE	0x0E, "SP"
+;
+			OPCODE	0x10, "NZ"
+			OPCODE	0x11, "Z"
+			OPCODE	0x12, "NC"
+			OPCODE	0x14, "PO"
+			OPCODE	0x15, "PE"
+			OPCODE	0x16, "P"
+			OPCODE	0x17, "M"
+;
+			OPCODE	0x20, "(C"
 ;
 			DEFB    0
 ;
-OPRNDS:			DEFB    'B'+80H
-			DEFB    0
-			DEFB    'C'+80H
-			DEFB    1
-			DEFB    'D'+80H
-			DEFB    2
-			DEFB    'E'+80H
-			DEFB    3
-			DEFB    'H'+80H
-			DEFB    4
-			DEFB    'L'+80H
-			DEFB    5
-			DEFM    '(H'
-			DEFB    'L'+80H
-			DEFB    6
-			DEFB    'A'+80H
-			DEFB    7
-			DEFM    '(I'
-			DEFB    'X'+80H
-			DEFB    86H
-			DEFM    '(I'
-			DEFB    'Y'+80H
-			DEFB    0C6H
+; Load operations
 ;
-			DEFM    'B'
-			DEFB    'C'+80H
-			DEFB    8
-			DEFM    'D'
-			DEFB    'E'+80H
-			DEFB    10
-			DEFM    'H'
-			DEFB    'L'+80H
-			DEFB    12
-			DEFM    'I'
-			DEFB    'X'+80H
-			DEFB    8CH
-			DEFM    'I'
-			DEFB    'Y'+80H
-			DEFB    0CCH
-			DEFM    'A'
-			DEFB    'F'+80H
-			DEFB    14
-			DEFM    'S'
-			DEFB    'P'+80H
-			DEFB    14
-;
-			DEFM    'N'
-			DEFB    'Z'+80H
-			DEFB    16
-			DEFB    'Z'+80H
-			DEFB    17
-			DEFM    'N'
-			DEFB    'C'+80H
-			DEFB    18
-			DEFM    'P'
-			DEFB    'O'+80H
-			DEFB    20
-			DEFM    'P'
-			DEFB    'E'+80H
-			DEFB    21
-			DEFB    'P'+80H
-			DEFB    22
-			DEFB    'M'+80H
-			DEFB    23
-;
-			DEFM    '('
-			DEFB    'C'+80H
-			DEFB    20H
-;
-			DEFB    0
-;
-LDOPS:			DEFM    'I'
-			DEFB    0
-			DEFB    'A'+80H
-			DEFB    47H
-			DEFM    'R'
-			DEFB    0
-			DEFB    'A'+80H
-			DEFB    4FH
-			DEFM    'A'
-			DEFB    0
-			DEFB    'I'+80H
-			DEFB    57H
-			DEFM    'A'
-			DEFB    0
-			DEFB    'R'+80H
-			DEFB    5FH
-			DEFM    '(BC'
-			DEFB    0
-			DEFB    'A'+80H
-			DEFB    2
-			DEFM    '(DE'
-			DEFB    0
-			DEFB    'A'+80H
-			DEFB    12H
-			DEFM    'A'
-			DEFB    0
-			DEFM    '(B'
-			DEFB    'C'+80H
-			DEFB    0AH
-			DEFM    'A'
-			DEFB    0
-			DEFM    '(D'
-			DEFB    'E'+80H
-			DEFB    1AH
+LDOPS:			OPCODE	0x47, "I\0A"
+			OPCODE	0x4F, "R\0A"
+			OPCODE	0x57, "A\0I"
+			OPCODE	0x5F, "A\0R"
+			OPCODE	0x02, "(BC\0A"
+			OPCODE	0x12, "(DE\0A"
+			OPCODE	0x0A, "A\0(BC"
+			OPCODE	0x1A, "A\0(DE"
 ;
 			DEFB    0
 ;
