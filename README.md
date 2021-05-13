@@ -8,7 +8,7 @@ The original version of BBC Basic was written by Sophie Wilson at Acorn in 1981 
 
 ### Why am I doing this?
 
-Whilst I love Sinclair BASIC, I feel that BBC Basic addresses many of its shortcomings, including the clunky editor, variable name limitations for strings and arrays, and performance.
+Whilst I love Sinclair BASIC, I feel that BBC Basic addresses many of its shortcomings, including the clunky editor, variable name length limitations for strings and arrays, and performance.
 
 “Ah”, I hear you say. “I can load a BBC Micro Core in my Next to run BBC Basic”. Yes of course you can do that, and it is an excellent core. You will of course be restricted to BBC Model B hardware in doing so.
 
@@ -18,11 +18,15 @@ The advantage of running BBC Basic native on the Next is that it can potentially
 
 The foundation of this port is R.T.Russell's original BBC Basic for Z80 code (for CP/M), with the CP/M specific code stripped out. This foundation code is just pure BASIC interpreter with no graphics, sound or file I/O support.
 
-I will need to add all of that in, in a manner that befits both BBC Basic, and the features available to the Next that the language was not designed to handle, such as hardware sprites.
+I will need to add all of that back in, in a manner that befits BBC Basic, whilst including all the features available to the Next in a language that was not designed to handle them, such as hardware sprites.
 
 ### Next Specific Modifications
 
 The Next version is near identical to the original language, with the following changes:
+
+###### Z80N instructions added to built-in assembler
+
+The assembler has been modified to handle Z80N instructions. See test_assembler_Z80N.bbc in the folder tests for a usage example.
 
 ###### PUT port,value[,type]
 
@@ -51,6 +55,10 @@ Sets the graphic colour. INK and PAPER are set using the same values as the COLO
 - 2 and 6 clear the pixel
 - 3 and 4 invert the pixel
 This is an attempt to stick to the BBC BASIC standard with 1-bit graphics
+
+###### VDU
+
+The VDU command is a work-in-progress with a handful of mappings implemented
 
 ### STAR commands
 
