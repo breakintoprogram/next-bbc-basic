@@ -3,10 +3,10 @@
 ;		Spectrum Next Initialisation
 ; Author:	Dean Belfield
 ; Created:	04/05/2021
-; Last Updated:	04/05/2021
+; Last Updated:	13/05/2021
 ;
 ; Modinfo:
-;
+; 13/05/2021:	Added BUILD_VERSION
 
 			MODULE	NEXT_INIT
 
@@ -17,6 +17,7 @@
 			NEXTREG 0x05, %01110001		; Peripheral 1 settings
 			NEXTREG 0x06, %10101000		; Peripheral 2 settings
 			NEXTREG 0x08, %10011110		; Peripheral 3 settings
+;			NEXTREG	0x09, %00011000		; Peripheral 4 settings
 			NEXTREG	0x03, %10110011		; Machine type - Native Next/128K+3
 
 			NEXTREG 0x50, 0xFF		; MMU Slot 1 0x0000 - ROM
@@ -28,7 +29,6 @@
 			NEXTREG 0x56, 0x0E		; MMU Slot 7 0xC000
 			NEXTREG 0x57, 0x0F		; MMU Slot 8 0xE000
 
-			NEXTREG 0x8C, 0x00		; Rom locking
 			NEXTREG	0x8F, 0x00		; Spectrum Next mapping mode
 
 			NEXTREG 0x12, 0x09		; Layer 2 RAM bank
@@ -36,14 +36,13 @@
 
 			NEXTREG 0x07, 0x00		; CPU to 3.5Mhz
 
-			NEXTREG 0x43, %00010000		; Layer 2 to first palette
-			NEXTREG 0x40, 0			; Palette index 0
+			NEXTREG 0x43, %00000000		; Select ULA, first palette, not ULANext
 ;			NEXTREG	0x14, 0x00		; Global transparency colour
 ;			NEXTREG 0x15, %00101001		; Enable sprites & clipping, SUL priority
 			NEXTREG 0x15, %00100001		; Enable sprites & clipping, SLU priority
 
-			Z80PORT	0x7FFD, 0x10		; Select ROM 1 (48K BASIC) + RAM 7 at 0xC000
-			Z80PORT 0x1FFD, 0x04		; Select ROM 1 & 3 (128K EDITOR, 48K BASIC)
+;			Z80PORT	0x7FFD, 0x10		; Select ROM 1 (48K BASIC) + RAM 7 at 0xC000
+;			Z80PORT 0x1FFD, 0x04		; Select ROM 1 & 3 (128K EDITOR, 48K BASIC)
 
 			CALL 	Initialise_Interrupt
 			LD	A, (TEXT_COLOUR)
@@ -52,9 +51,10 @@
 			RRA 
 			RRA
 			OUT	(254), A
-			CALL	CLRSCN
+			LD	A, 0
+			CALL	NEXT_IO.Set_Video_Mode	; Set the bootup video mode
 			CALL    TELL
-			DEFM	"Spectrum Next 0.01\n\r"
+			DEFM	"Spectrum Next Version ", BUILD_VERSION, "\n\r"
 			DEFM	"\n\r"
 			DEFB    0
 			JP	MAIN.COLD
