@@ -2,6 +2,8 @@
 # next-bbc-basic
 A port of BBC Basic for Z80 to the Spectrum Next
 
+![BBC Basic for Spectrum Next](images/bbc_basic_readme_header.png)
+
 ### What is BBC Basic for Z80?
 
 The original version of BBC Basic was written by Sophie Wilson at Acorn in 1981 for the BBC Micro range of computers, and was designed to support the UK Computer Literacy Project. R.T.Russell ported the 6502 version to Z80, and this version has been implemented on a number of Z80 based machines. [You can find a full history of BBC Basic on his website](http://www.bbcbasic.co.uk/bbcbasic/history.html).
@@ -26,7 +28,7 @@ The Next version is near identical to the original language, with the following 
 
 ###### Z80N instructions added to built-in assembler
 
-The assembler has been modified to handle Z80N instructions. See test_assembler_Z80N.bbc in the folder tests for a usage example.
+The assembler has been modified to handle Z80N instructions. See [test_assembler_Z80N.bbc](tests/test_assembler_Z80N.bbc) in the folder tests for a usage example.
 
 ###### PUT port,value[,type]
 
@@ -90,9 +92,9 @@ I'll dump significant updates as executable nex files in the releases folder
 
 ### License
 
-This code is distributable under the terms of a zlib license. Read the file COPYING for more information.
+This code is distributable under the terms of a zlib license. Read the file [COPYING](COPYING) for more information.
 
-The code, as originally written by R.T. Russell and provided by David Given (dg@colark.com), has been modified slightly, either for compatibility reasons when assembling using sjasmplus, or for development reasons for this release:
+The code, as originally written by R.T. Russell and [downloaded from David Given's GitHub page](https://github.com/davidgiven/cpmish/tree/master/third_party/bbcbasic), has been modified slightly, either for compatibility reasons when assembling using sjasmplus, or for development reasons for this release:
 
 - General changes:
 	- The top-of-file comments have been tweaked to match my style
@@ -117,4 +119,6 @@ The bulk of the Spectrum Next specific code I've written can be found in the z80
 Any additions or modifications I've made to port this to the Next have been released under the same licensing terms as the original code, and code that has been copied or inspired by other sources is clearly marked, with the appropriate accreditations.
 
 Dean Belfield
-www.breakintoprogram.co.uk
+
+Twitter: [@breakintoprogram](https://twitter.com/BreakIntoProg)
+Blog: http://www.breakintoprogram.co.uk
