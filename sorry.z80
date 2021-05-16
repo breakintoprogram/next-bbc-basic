@@ -7,10 +7,10 @@
 ;
 ; Modinfo:
 ; 10/05/2021	Moved GETIMS to patch.z80
+; 13/05/2021	Moved DRAW to patch.z80
 
 			MODULE SORRY
 	
-@DRAW:
 @ENVEL:
 @SOUND:
 @ADVAL:
