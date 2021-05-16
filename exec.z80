@@ -4,7 +4,7 @@
 ; Author:	(C) Copyright  R.T.Russell  1984
 ; Modified By:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	13/05/2021
+; Last Updated:	14/05/2021
 ;
 ; Modinfo:
 ; 27/01/1984:	Version 2.1
@@ -13,6 +13,7 @@
 ; 02/05/2021:	Modified by Dean Belfield to assemble with SJASMPLUS
 ; 05/05/2021:	Moved PUT to patch.z80
 ; 13/05/2021:	Added Z80N instructions to OPCODS and used OPCODE macro to make it a bit easier to understand
+; 14/05/2021:	Fixed the assembler output tabbing - optimised for 32 columns
 ;
 
 			MODULE EXEC
@@ -107,12 +108,10 @@ CHAIN:			CALL    EXPRS
 			CALL    LOAD0
 @RUN0:			LD      SP,(HIMEM)      ;PREPARE FOR RUN
 			LD      IX,RANDOM
-; dtrg: bugfix here; on emulators, R is always zero, and the original
-; code always waiting until it was non-zero, resulting in a hang.
-; Instead we crudely hack around it.
-			ld      a, r
-			jr      nz, 1F
-			inc     a
+;
+			LD      A, R		;DTRG: Bugfix here; on emulators, R is always zero, and the original
+			JR      NZ, 1F		;code always waiting until it was non-zero, resulting in a hang.
+			INC	A		;Instead we crudely hack around it.
 ;
 1:			RLCA
 			RLCA
@@ -1360,7 +1359,7 @@ USR2:			POP     IY
 			LD      C,A
 			RET
 ;
-;PUT port,data: Moved to patch.z80, so nextreg support could be addde
+;PUT port,data: Moved to patch.z80, so nextreg support could be added
 ;
 ;PUT:			CALL    EXPRI           ;PORT ADDRESS
 ;			EXX
@@ -1852,7 +1851,7 @@ ASSEM3:			INC     IY
 			POP     HL
 			OR      A
 			SBC     HL,DE
-			EX      DE,HL           ;DE= NO. OF BYTES
+			EX      DE,HL 
 			PUSH    HL
 			LD      HL,(PC)
 			PUSH    HL
@@ -1871,19 +1870,23 @@ ASSEM5:			POP     HL              ;OLD PC
 			CALL    HEX
 			LD      A,L
 			CALL    HEXSP
-			XOR     A
+			XOR     A		
 			CP      E
 			JR      Z,ASSEM2
+;
+; Output the HEX dump
+;
 ASSEM1:			LD      A,(COUNT)
-			CP      31		;DB: Was 17
+			CP      13		;DB Was 17
 			LD      A,5
-			CALL    NC,TABIT        ;NEXT LINE
+			CALL    NC,TABIT
 			LD      A,(IX)
-			CALL    HEXSP
+			CALL    HEX		;DB was HEXSP
 			INC     IX
 			DEC     E
 			JR      NZ,ASSEM1
-ASSEM2:			LD      A,32		;DB: Was 18
+;
+ASSEM2:			LD      A,14		;DB Was 18
 			CALL    TABIT
 			PUSH    IY
 			POP     HL
