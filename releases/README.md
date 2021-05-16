@@ -5,7 +5,7 @@ These releases are compiled on an ad-hoc basis and have been tested on the MiSTe
 
 For the latter, please use the nex file that ends in "_em"; this binary is assembled slightly differently to get around some bugs in the emulator, namely ULA hardware scrolling.
 
-##### 20210513: Version 0.03
+##### 20210516: Version 0.03
 - Added MODE command
 - Added line and circle graphics routines
 - Star commands can now take decimal or hex values
