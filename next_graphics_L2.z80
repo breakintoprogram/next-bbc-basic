@@ -1,0 +1,177 @@
+;
+; Title:	BBC Basic Interpreter - Z80 version
+;		Spectrum Next Layer 2 Graphics Routines
+; Author:	Dean Belfield
+; Created:	13/05/2021
+; Last Updated:	15/05/2021
+;
+; TODO:		L2 will read read/write access to the screen for any plot operation other than SET
+;
+; Modinfo:
+; 14/05/2021:	Added plot modes
+; 15/05/2021:	Plot now pulls PLOT_MODE and PLOT_COLOUR direct from RAM; Updates for MODE command
+
+			MODULE	NEXT_GRAPHICS_L2
+
+; Set the video mode up
+;
+Set_Video_Mode:		NEXTREG 0x15, %00100001		; Enable sprites & clipping, SLU priority
+			LD	A, 0xFF
+			LD	(TEXT_COLOUR), A 
+			LD	(PLOT_COLOUR), A
+			RET
+
+; Clear the screen
+;
+Clear_Screen:		LD	C, %00000011
+			CALL 	1F
+			LD	C, %01000011
+			CALL 	1F
+			LD	C, %10000011
+1:			LD	A,C
+			LD	BC, 0x123B
+			OUT	(C),A
+			LD	A, 0			; Colour to clear
+			LD	DE,0x0000
+			LD	BC,0x4000
+			CALL	NEXT_DMA.FillDMA
+			NEXTREG	0x17, 0
+			RET
+
+; Scroll
+;  H: Line to clear after scroll
+;
+Set_Scroll_Reg:		LD	A, (SCRLPOS_Y)
+			ADD	A, A
+			ADD	A, A
+			ADD	A, A 
+			NEXTREG	0x17, A
+
+; Clear a line
+;  H: Line to clear
+;
+Clear_Line:		LD 	L, 0
+			CALL	NEXT_IO.Get_Charpos_1
+			CALL	Get_Char_Address
+			XOR	A 
+			LD	B, A 
+			LD	C, 8
+1:			LD	(HL), A 
+			INC	HL
+			DJNZ	1B
+			DEC	C 
+			JR	NZ, 1B
+			RET
+
+; Print a single character out to an X/Y position
+;  E: Character to print
+;  L: X Coordinate
+;  H: Y Coordinate
+;
+Print_Char:		CALL 	Get_Char_Address
+			LD 	D, 8			; Multiply the character byte by 8
+			MUL 	D,E
+			LD 	A,0x3C			; Address of character set in ROM (HIGH)
+			ADD 	A,D
+			LD 	D,A
+			LD	A, (TEXT_COLOUR)	; Foreground colour
+			LD	C, A
+			LD	B, 0			; Background colour
+			LD	IXH,8			; Outer Loop counter
+1:			PUSH	HL
+			LD	A,(DE)			; Get the byte from the ROM into A
+			LD	IXL, 8			; Inner loop counter
+2:			ADD	A, A
+			JR	C, 3F
+			LD	(HL),B			; Set background colour
+			JR	4F
+3:			LD	(HL),C			; Set foreground colour
+4:			INC	L
+			DEC	IXL
+			JR	NZ, 2B
+			INC 	DE			; Goto next byte of character
+			POP	HL
+			INC	H			; Goto next line on screen
+			DEC	IXH
+			JR 	NZ,1B			; Loop around whilst it is Not Zero (NZ)
+			RET
+
+
+; Get screen address
+;  H = Y character position
+;  L = X character position
+;  Returns address in HL
+;
+Get_Char_Address:	PUSH	DE
+			EX 	DE, HL
+			SLA	D 
+			SLA 	D
+			SLA  	D 
+			SLA 	E 
+			SLA 	E 
+			SLA 	E
+			CALL	Get_Pixel_Address
+			POP	DE
+			RET
+
+; Get pixel position
+; Pages in the correct 16K Layer 2 screen bank into 0x0000
+; D: Y coordinate
+; E: X coordinate
+; Returns:
+; HL: Address in memory (between 0x0000 and 0x3FFF)
+;
+; Trashes: A,B,C,H,L
+;
+Get_Pixel_Address:	LD 	L,E			; The low byte is the X coordinate
+			LD	A,D			; Get the Y coordinate
+			AND	0x3F			; Offset in bank
+			LD	H,A			; Store in high byte
+			LD	A,D			; Get the Y coordinate
+			AND	0xC0			; Get the bank number
+			OR	%00000011		; Set visible/write bits
+			LD	BC,0x123B		; Port #
+			OUT	(C),A 			; Page in the screen bank
+			RET
+
+; Plot a point
+;  E: X
+;  D: Y
+;	
+Plot:			
+			LD	A, (PLOT_MODE)		; Check plot mode is valid
+			CP	7
+			RET	NC			; Do nothing if plot mode >=7
+			LD	HL, Plot_Table 		; Get plot routine address
+			ADD	A, A
+			ADD	HL, A 
+			LD	A, (HL)
+			INC	HL
+			LD	H, (HL)
+			LD	L, A
+			PUSH	HL
+			CALL	Get_Pixel_Address
+			LD	A, (PLOT_COLOUR)
+			RET
+
+Plot_CLR:		XOR	A
+Plot_SET:		LD	(HL), A			; Write the colour out
+Plot_NOP:		RET
+Plot_AND:		AND	(HL)
+			LD	(HL), A
+			RET 
+Plot_OR:		OR	(HL)
+			LD	(HL), A 
+			RET
+Plot_XOR:		XOR	(HL) 
+			LD	(HL), A 
+			RET 
+Plot_NOT:		LD	A, (HL)
+			CPL
+			LD	(HL), A 
+			RET 
+
+Plot_Table:		DW	Plot_SET, Plot_OR,  Plot_AND, Plot_XOR
+			DW	Plot_NOT, Plot_NOP, Plot_CLR
+
+			ENDMODULE

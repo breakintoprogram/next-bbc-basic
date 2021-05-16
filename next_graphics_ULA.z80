@@ -1,0 +1,221 @@
+;
+; Title:	BBC Basic Interpreter - Z80 version
+;		Spectrum Next ULA Graphics Routines
+; Author:	Dean Belfield
+; Created:	13/05/2021
+; Last Updated:	15/05/2021
+;
+; Modinfo:
+; 15/05/2021:	Plot now pulls PLOT_MODE and PLOT_COLOUR direct from RAM; Updates for MODE command
+
+			MODULE	NEXT_GRAPHICS_ULA
+
+; Set the video mode up
+;
+Set_Video_Mode:		NEXTREG 0x15, %00101001		; Enable sprites & clipping, SUL priority
+			LD	A, %01000111
+			LD	(TEXT_COLOUR), A 
+			LD	(PLOT_COLOUR), A
+			RET
+
+; Clear the screen
+;
+Clear_Screen:		LD	HL,16384		; Start address of screen bitmap
+			LD	DE,16385		; Address + 1
+			LD	BC,6144			; Length of bitmap memory to clear
+			LD	(HL),0			; Set the first byte to 0
+			LDIR				; Copy this byte to the second, and so on
+			LD	BC,767			; Length of attribute memory, less one to clear
+			LD	A, (TEXT_COLOUR)
+			LD	(HL),A			; Set the first byte to A
+			LDIR				; Copy this byte to the second, and so on
+			NEXTREG	ULA_Y_SCROLL, 0		; Reset scroll
+			RET
+
+; Scroll
+;  H: Line to clear after scroll
+;
+Set_Scroll_Reg:		LD	A, (SCRLPOS_Y)
+			ADD	A, A
+			ADD	A, A
+			ADD	A, A 
+			NEXTREG	ULA_Y_SCROLL, A 
+
+; Clear a line
+;  H: Line to clear
+;
+Clear_Line:		LD 	L, 0
+			CALL	NEXT_IO.Get_Charpos_1
+			CALL	Get_Char_Address
+			PUSH	HL
+			XOR	A
+			LD	C, 8
+1:			LD	B, 32
+			PUSH	HL			
+2:			LD	(HL), A 
+			INC	L 
+			DJNZ	2B
+			POP	HL
+			INC	H 
+			DEC	C 
+			JR	NZ, 1B
+			POP	HL 
+			LD	A, H 
+			RRA
+			RRA 
+			RRA 
+			AND 	3 
+			OR	88
+			LD	H, A 
+			LD	B,32 
+			LD	A, (TEXT_COLOUR)
+3:			LD	(HL), A 
+			INC	L 
+			DJNZ	3B
+			RET 
+
+; Print a single character out to an X/Y position
+;  E: Character to print
+;  L: X Coordinate
+;  H: Y Coordinate
+;
+Print_Char:		CALL 	Get_Char_Address
+			LD 	D, 8			; Multiply the character byte by 8
+			MUL 	D,E
+			LD 	A,0x3C			; Address of character set in ROM (HIGH)
+			ADD 	A,D
+			LD 	D,A
+			LD	B,8			; Loop counter
+1:			LD 	A,(DE)			; Get the byte from the character in A
+			LD 	(HL),A			; Stick A onto the screen
+			INC 	DE			; Goto next byte of character
+			INC 	H			; Goto next line on screen
+			DJNZ 	1B			; Loop around whilst it is Not Zero (NZ)
+			LD	A, H 			; And set the attribute up too
+			RRA
+			RRA 
+			RRA
+			DEC	A
+			AND 	3 
+			OR	88
+			LD	H, A 
+			LD	A,(TEXT_COLOUR)
+			LD	(HL), A
+			RET
+
+; Get screen address
+;  H = Y character position
+;  L = X character position
+;  Returns address in HL
+;
+Get_Char_Address:	LD	A,H
+			AND	%00000111
+			RRA
+			RRA
+			RRA
+			RRA
+			OR	L
+			LD	L,A
+			LD	A,H
+			AND	%00011000
+			OR	%01000000
+			LD	H,A
+			RET				; Returns screen address in HL
+
+; Plot a point
+;  E: X
+;  D: Y
+;	
+Plot:			LD	A, (PLOT_MODE)		; Check plot mode is valid
+			CP	7
+			RET	NC			; Do nothing if plot mode >=7
+			LD	HL, Plot_Table 		; Get plot routine address
+			ADD	A, A 
+			ADD	HL, A 
+			LD	A, (HL)
+			INC	HL
+			LD	H, (HL)
+			LD	L, A			; HL:  plot routine address
+			LD	A, (SCRLPOS_Y)		; Get Y scroll position
+			ADD	A, A
+			ADD	A, A 
+			ADD	A, A 			; Multiply by 8
+			ADD	A, D 			; Add to pixel Y position
+			JR	C, 0F 			; If we've wrapped, then skip
+			CP	192			; Gone off screen?
+			JR	C, 1F 
+0:			SUB	192
+1:			LD	D, A 			; D = Y, E = X
+			PUSH	HL			; Stack plot routine address
+			PIXELAD				; Get the pixel address in HL
+			SETAE				; Get pixel mask in A
+			LD	C, A 			;  C: Pixel mask
+			LD	A, (HL)			;  A: Contents of screen address
+Plot_NOP:		RET				; Jump to plot routine (address stacked previous)
+
+Plot_OR:		OR	C			; OR with screen
+			LD	(HL), A
+			JR	Plot_Attribute
+
+Plot_AND:		LD	A, C			; AND with screen
+			CPL 
+			AND	(HL)
+			LD	(HL), A 
+			JR	Plot_Attribute 
+
+Plot_XOR:		XOR	C 			; XOR with screen
+			LD	(HL), A
+			JR	Plot_Attribute 
+
+; Plot table
+;
+Plot_Table:		DW	Plot_OR,  Plot_OR,  Plot_AND, Plot_XOR 
+			DW	Plot_XOR, Plot_NOP, Plot_AND 
+
+; Write colour value out to ULA attribute map
+; HL: Address in ULA pixel map
+;  B: Colour to write out
+;			
+Plot_Attribute:		LD	A, H 			; Get the attribute address from the screen address
+			RRA
+			RRA 
+			RRA 
+			AND 	3 
+			OR	88
+			LD	H, A 
+			LD	A, (PLOT_COLOUR)
+			LD	(HL), A			; Write the colour out
+			RET
+
+; Calculate Speccy colour for COLOUR and GCOL
+;  A: Current Colour
+;  C: New Colour
+;
+Get_Colour:		BIT	7, C		; Check bit 7 of the colour
+			JR	Z, 1F		; for numbers >=128
+			AND	%11000111	; And out the PAPER colour
+			LD	B, A		; Store in B
+			LD	A, C 
+			AND	%00000111	; Get colour
+			RLA 			; Shift into position
+			RLA 
+			RLA 
+			OR	B 		; Or with existing colour
+			LD	C, A
+			RET
+1:			AND	%00111000	; And out the INK colour, BRIGHT and FLASH
+			LD	B, A		; Store in B
+			LD	A, C 
+			AND	%00000111	; Get colour
+			OR	B 		; Or with existing colour
+			LD	B, A 
+			LD	A, C		; Get flash and bright
+			AND	%00011000	; Mask, and shift in
+			ADD	A, A
+			ADD	A, A
+			ADD	A, A
+			OR	B		; Store in B
+			LD	C, A
+			RET
+
+			ENDMODULE
