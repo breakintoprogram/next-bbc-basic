@@ -3,12 +3,13 @@
 ;		Patch file for Spectrum Next
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	10/05/2021
+; Last Updated:	15/05/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Fixed plot mode and bug in COMDS table
 ; 10/05/2021:	Added RTC TIME$ and *TIME, moved some code into misc.z80, and changes due to VDU support
-			
+; 15/05/2021:	References to ASC_TO_HEX changed to ASC_TO_NUMBER in STAR commands; Updates for MODE command
+
 			MODULE PATCH
 
 ; MODE n: Set video mode
@@ -16,8 +17,7 @@
 @MODE:			CALL    EXPRI
 			EXX
 			LD	A, L
-			LD	(VIDEO_MODE), A
-			CALL 	@CLRSCN
+			CALL	NEXT_GRAPHICS.Set_Video_Mode
 			JP	XEQ
 
 ; CLG: clear the graphics screen
@@ -247,7 +247,7 @@ STAR_DOT:		RET
 ; OSCLI TURBO n
 ; Set CPU Speed: 0 = 3.5Mhz, 1 = 7Mhz, 2 = 14Mhz, 3 = 28Mhz
 ;
-STAR_TURBO:		CALL	ASC_TO_HEX
+STAR_TURBO:		CALL	ASC_TO_NUMBER
 			LD	A, E 
 			NEXTREG	0x07, A 
 			RET
@@ -255,9 +255,9 @@ STAR_TURBO:		CALL	ASC_TO_HEX
 ; OSCLI FX n
 ; 19: HSYNC
 ;
-STAR_FX:		CALL	ASC_TO_HEX	; TODO: Need Decimal
+STAR_FX:		CALL	ASC_TO_NUMBER
 			LD	A, E
-			CP	0x19
+			CP	19
 			JR	Z, STAR_FX_19 
 			JP 	HUH
 STAR_FX_19:		HALT
@@ -265,18 +265,17 @@ STAR_FX_19:		HALT
 
 ; OSCLI MEMDUMP addr, count
 ; 
-STAR_MEMDUMP		CALL	ASC_TO_HEX	; Get stard address
+STAR_MEMDUMP		CALL	ASC_TO_NUMBER	; Get start address
 			INC	HL
 			PUSH	DE 
-			CALL	ASC_TO_HEX	; Get length in DE
+			CALL	ASC_TO_NUMBER	; Get length in DE
 			POP	HL 		; Get start address in HL
 			JP	NEXT_DEBUG.Memory_Dump
 
 ; OSCLI TEST
 ; Stick code to test code here
 ;
-STAR_TEST:		CALL 	NEXT_DOS.Version
-			RET
+STAR_TEST:		RET
 
 ; OSCLI TIME
 ; Output current time
@@ -296,32 +295,32 @@ STAR_TIME:		CALL	GETIMS
 ; PUT port,data[,type]
 ; Moved from exec.z80
 ;
-@PUT:			CALL    EXPRI           ;PORT ADDRESS
+@PUT:			CALL    EXPRI           ; PORT ADDRESS
 			EXX
 			PUSH    HL
 			CALL    COMMA
-			CALL    EXPRI           ;DATA
+			CALL    EXPRI           ; DATA
 			EXX
 			PUSH	HL
-			CALL    NXT		;If no third parameter passed
-			CP	','		;Can we find a comma
-			LD	A, 0		;Default value
-			JR 	NZ, 1F		;No, so skip third parameter
-			INC	IY		;Yes, so skip the comma
-			CALL	EXPRI		;TYPE
+			CALL    NXT		; If no third parameter passed
+			CP	','		; Can we find a comma
+			LD	A, 0		; Default value
+			JR 	NZ, 1F		; No, so skip third parameter
+			INC	IY		; Yes, so skip the comma
+			CALL	EXPRI		; TYPE
 			EXX
-			LD	A,L		;A = TYPE
-1:			POP	HL		;L = DATA
-			POP	BC		;BC = PORT/REGISTER
+			LD	A,L		;  A = TYPE
+1:			POP	HL		;  L = DATA
+			POP	BC		; BC = PORT/REGISTER
 			OR	A 
 			JR	Z, 2F	
 			DEC	A 
 			JR	Z, 3F
-			JP	XEQ		;TODO: Error here
-2:			OUT     (C),L           ;OUTPUT TO PORT BC
+			JP	XEQ		; TODO: Error here
+2:			OUT     (C),L           ; OUTPUT TO PORT BC
 			JP      XEQ
-3:			LD	A,C		;Get register value TODO: Error if B is not zero
-			LD	BC,0x243B	;Set Next register number
+3:			LD	A,C		; Get register value TODO: Error if B is not zero
+			LD	BC,0x243B	; Set Next register number
 			OUT	(C),A 
 			INC	B
 			OUT	(C),L
@@ -330,26 +329,26 @@ STAR_TIME:		CALL	GETIMS
 ; GET(port[,type])
 ; Called from GET in eval.z80
 ;
-@GET_PORT:		INC	IY		;Skip '('
-			CALL    EXPRI           ;PORT ADDRESS
+@GET_PORT:		INC	IY		; Skip '('
+			CALL    EXPRI           ; PORT ADDRESS
 			EXX
 			PUSH	HL
 			CALL	NXT
 			CP	','
-			LD	A, 0		;Default type
+			LD	A, 0		; Default type
 			JR	NZ,1F
-			INC	IY		;Skip comma
-			CALL	EXPRI		;Type
+			INC	IY		; Skip comma
+			CALL	EXPRI		; Type
 			EXX
-			LD	A, L		;A = TYPE
-1:			POP	BC		;BC = PORT/REGISTER
+			LD	A, L		;  A = TYPE
+1:			POP	BC		; BC = PORT/REGISTER
 			OR	A 
-			JR	Z, 2F 		;If zero, skip to plain Z80 fetch
-			LD 	A,C		;Get register value in A
-			LD	BC,0x243B	;Nextreg port
-			OUT	(C),A		;Select register from Next to read
+			JR	Z, 2F 		; If zero, skip to plain Z80 fetch
+			LD 	A,C		; Get register value in A
+			LD	BC,0x243B	; Nextreg port
+			OUT	(C),A		; Select register from Next to read
 			INC	B
-2:			IN	L,(C)		;Read value
+2:			IN	L,(C)		; Read value
 			CALL    BRAKET
 			JP      EVAL.COUNT0
 
@@ -358,9 +357,9 @@ STAR_TIME:		CALL	GETIMS
 ;
 @COLOUR:		CALL    EXPRI
 			EXX
-			LD	A, (TEXT_COLOUR)
-			CALL	Get_ULA_Colour
-			LD	(TEXT_COLOUR), A
+			LD	A, L 
+			LD	HL, TEXT_COLOUR
+			CALL	NEXT_GRAPHICS.Set_Colour
 			JP	XEQ
 ; GCOL mode, colour
 ;
@@ -371,53 +370,20 @@ STAR_TIME:		CALL	GETIMS
 			CALL	COMMA
 			CALL	EXPRI		; Get the colour
 			EXX 
-			LD	A, (VIDEO_MODE)
-			OR	A 
-			JR	Z, 1F
-			DEC	A 
-			JP	NZ, XEQ 
-			LD	A, L 
-			LD	(PLOT_COLOUR), A 
+			LD	A, L
+			LD	HL, PLOT_COLOUR
+			CALL	NEXT_GRAPHICS.Set_Colour
 			JP	XEQ 
-1:			LD	A, (PLOT_COLOUR)
-			CALL	Get_ULA_Colour
-			LD	(PLOT_COLOUR), A 
-			JP	XEQ
-
-; Calculate Speccy colour for COLOUR and GCOL
-; A: Current attribute value
-; L: Colour
-;
-@Get_ULA_Colour:	BIT	7, L 		; Check bit 7 of the colour
-			JR	Z, 1F		; for numbers >=128
-			AND	%11000111	; And out the PAPER colour
-			LD	H, A		; Store in H
-			LD	A, L 
-			AND	%00000111	; Get colour
-			RLA 			; Shift into position
-			RLA 
-			RLA 
-			OR	H 		; Or with existing colour
-			RET
-1:			AND	%11111000	; And out the INK colour
-			LD	H, A		; Store in H
-			LD	A, L 
-			AND	%00000111	; Get colour
-			OR	H 		; Or with existing colour
-			RET
 
 ; PLOT mode,x,y
 ;
-@PLOT:			CALL	EXPRI		; Get the style (line, plot, etc)
+@PLOT:			CALL	EXPRI		; Get the plot type (line, plot, etc)
 			EXX
 			PUSH	HL		
 			CALL	COMMA 
 			CALL	MOVE_1		; Get X and Y parameters
-			POP	HL		; Plot style in L
-			LD	B, A 		; Plot style in B
-			LD	A, (PLOT_MODE) 	
-			LD	C, A		; Plot mode in C
-			LD	A, (PLOT_COLOUR)
+			POP	HL		; Plot type in L
+			LD	A, L 		; Plot type in A
 			LD	DE, (PLOTPOS_X)
 			LD	HL, (PLOTPOS_Y)
 			CALL	NEXT_GRAPHICS.Plot
@@ -427,7 +393,11 @@ STAR_TIME:		CALL	GETIMS
 ;
 @MOVE:			CALL	MOVE_1		; Get X and Y parameters
 			JP	XEQ
-@MOVE_1:		CALL	EXPRI		; Get X
+@MOVE_1:		LD	HL, (PLOTPOS_X)	; Store the previous plot points
+			LD 	(PLOTPRE_X), HL 
+			LD	HL, (PLOTPOS_Y)
+			LD	(PLOTPRE_Y), HL
+			CALL	EXPRI		; Get X
 			EXX 
 			LD	(PLOTPOS_X), HL	; And store
 			CALL	COMMA 
@@ -435,6 +405,47 @@ STAR_TIME:		CALL	GETIMS
 			EXX 
 			LD	(PLOTPOS_Y), HL ; And store
 			RET 
+
+; DRAW x, y
+;
+@DRAW:			CALL	EXPRI		; Get X2
+			EXX 
+			PUSH 	HL		; Stack it
+			CALL	COMMA 
+			CALL	EXPRI		; Get Y2
+			EXX
+			LD	A, L 		; A: Y2
+			POP	HL 		; L: X2
+			LD	H, A		; H: Y2
+			PUSH	HL 		; Stack that coordinate pair
+
+			CALL    NXT		; If no third parameter passed
+			CP	','		; Can we find a comma
+			JR 	Z, 1F		; Yes, so fetch two more parameters
+
+			LD	A, (PLOTPOS_X)	; No, so get defaults from PLOTPOS
+			LD	L, A 		; L: X1
+			LD	A, (PLOTPOS_Y)
+			LD	H, A 		; H: Y1 
+			PUSH	HL		; Stackit
+			JR	2F		; Jump to plot
+
+1:			INC	IY		; Skip the comma
+			CALL	EXPRI		; Get Y1
+			EXX 
+			PUSH 	HL		; Stack it
+			CALL	COMMA 
+			CALL	EXPRI		; Get Y1
+			EXX
+			LD	A, L 		; A: Y1
+			POP	HL 		; L: X1
+			LD	H, A		; H: Y1
+			PUSH	HL 		; Stack that coordinate pair
+
+2:			POP	DE 		; Pop (X1,Y1)
+			POP	HL		; Pop (X2,Y2)
+			CALL	NEXT_GRAPHICS.Draw_Line
+			JP	XEQ 
 
 ; POINT(x,y)
 ;
