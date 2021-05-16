@@ -42,21 +42,41 @@ Like PUT, this takes an optional type parameter to read from NEXTREG registers
 
 ###### PLOT type,x,y
 
-Currently just plots a point at screen positions X (0 to 255) and Y (0 to 191) on the ULA layer using the current graphics colour and mode set by GCOL.
+The only plot modes supported currently are:
 
-Type is usually the plot type (relative, absolute, plot, line, etc), but is currently ignored. Only plotting points is supported at the moment.
+- PLOT 0, X, Y: Draw a line from last plot position to X, Y
+- PLOT 64, X, Y: Plot a point
+- PLOT 144, 0, R: Draw a circle of radius R. The center position is the last plot position
+
+###### MODE n
+
+Two modes supported:
+
+- MODE 0: ULA mode (Normal Spectrum 256x192 Graphics)
+- MODE 1: Layer 2 mode (256 x 192, 256 colours per pixel)
 
 ###### COLOUR n
 
-Sets the text colour. 0 to 7 sets the INK colour, 128 to 135 sets the PAPER colour. Currently no support for BRIGHT or FLASH
+In MODE 0:
+- 0-7: Ink colour
+- 8-15: As per 0-7, but bright intensity
+- 16-31: As per 0-15, but flashing
+- 128-135: Paper colour
+
+In MODE 1:
+- Layer 2 palette colour
 
 ###### GCOL mode, colour
 
-Sets the graphic colour. INK and PAPER are set using the same values as the COLOUR command. Mode is currently one of the following:
+Sets the graphic colour, as per COLOUR
+
+Mode values for MODE 0 is currently one of the following:
 - 0 and 1 set the pixel
 - 2 and 6 clear the pixel
 - 3 and 4 invert the pixel
 This is an attempt to stick to the BBC BASIC standard with 1-bit graphics
+
+Mode for MODE 1 should work as per BBC Basic specifications but currently only supports 0 and 6 due to a memory mapping issue I need to resolve.
 
 ###### VDU
 
@@ -70,7 +90,7 @@ The time is also available in the system variable TIME$
 ###### *TURBO n
 Will set the turbo mode (0: 3.5Mhz, 1: 7Mhz, 2: 14Mhz, 3: 28Mhz)
 ###### *MEMDUMP start,len
-List contents of memory - start and len are in hex
+List contents of memory
 ###### *FX command support
 - 19: The only FX command supported - waits for the horizontal sync
 
