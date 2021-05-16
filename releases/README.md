@@ -5,6 +5,15 @@ These releases are compiled on an ad-hoc basis and have been tested on the MiSTe
 
 For the latter, please use the nex file that ends in "_em"; this binary is assembled slightly differently to get around some bugs in the emulator, namely ULA hardware scrolling.
 
+##### 20210513: Version 0.03
+- Added MODE command
+- Added line and circle graphics routines
+- Star commands can now take decimal or hex values
+- Graphics routines for Layer 2 and ULA now split into separate files
+- Bug fixes:
+	- Z80 assembler output now tabulated correctly
+	- Spectrum (C) symbol now remapped as ASCII 0xA9
+
 ##### 20210513: Version 0.02
 - Added Z80N instrructions to Z80 assembler - see [test_assembler_Z80N.bbc](../tests/test_assembler_Z80N.bbc) for example test code
 - Bug fixes
