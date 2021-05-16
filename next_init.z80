@@ -3,10 +3,11 @@
 ;		Spectrum Next Initialisation
 ; Author:	Dean Belfield
 ; Created:	04/05/2021
-; Last Updated:	13/05/2021
+; Last Updated:	15/05/2021
 ;
 ; Modinfo:
 ; 13/05/2021:	Added BUILD_VERSION
+; 15/05/2021:	Updates for MODE command
 
 			MODULE	NEXT_INIT
 
@@ -37,22 +38,12 @@
 			NEXTREG 0x07, 0x00		; CPU to 3.5Mhz
 
 			NEXTREG 0x43, %00000000		; Select ULA, first palette, not ULANext
-;			NEXTREG	0x14, 0x00		; Global transparency colour
-;			NEXTREG 0x15, %00101001		; Enable sprites & clipping, SUL priority
-			NEXTREG 0x15, %00100001		; Enable sprites & clipping, SLU priority
-
-;			Z80PORT	0x7FFD, 0x10		; Select ROM 1 (48K BASIC) + RAM 7 at 0xC000
-;			Z80PORT 0x1FFD, 0x04		; Select ROM 1 & 3 (128K EDITOR, 48K BASIC)
 
 			CALL 	Initialise_Interrupt
-			LD	A, (TEXT_COLOUR)
-			AND	%00111000
-			RRA 
-			RRA 
-			RRA
-			OUT	(254), A
-			LD	A, 0
-			CALL	NEXT_IO.Set_Video_Mode	; Set the bootup video mode
+			LD	A, 0			; Set the border colour
+			CALL	NEXT_GRAPHICS.Set_Border
+			LD	A, 0			; Set the video mode
+			CALL	NEXT_GRAPHICS.Set_Video_Mode
 			CALL    TELL
 			DEFM	"Spectrum Next Version ", BUILD_VERSION, "\n\r"
 			DEFM	"\n\r"
