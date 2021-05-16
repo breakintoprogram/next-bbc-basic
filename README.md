@@ -108,7 +108,7 @@ Every endeavour will be made to ensure the code is stable and will assemble, yet
 
 ### Releases
 
-I'll dump significant updates as executable nex files in the releases folder
+I'll dump significant updates as executable nex files in the [releases](releases) folder
 
 ### License
 
