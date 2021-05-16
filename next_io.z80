@@ -3,37 +3,16 @@
 ;		Spectrum Next I/O Routines
 ; Author:	Dean Belfield
 ; Created:	03/05/2021
-; Last Updated:	13/05/2021
+; Last Updated:	15/05/2021
 ;
 ; Modinfo:
 ; 10/05/2021:	Started implementing VDU engine
 ; 11/05/2021:	Fixed bug in Scroll_Down
 ; 13/05/2021:	Removed (C) symbol from keytable; 0x7F is now backspace
+; 14/05/2021:	Fixed bug in Print_Char - now preserves A
+; 15/05/2021:	Restored (C) symbol in keytable as ASCII 0xA9; Updates for MODE command
 ;
 			MODULE	NEXT_IO
-
-; Clear the screen
-;
-Clear_Screen:		LD 	A, (TEXT_COLOUR)
-			LD	HL,16384		; Start address of screen bitmap
-			LD	DE,16385		; Address + 1
-			LD	BC,6144			; Length of bitmap memory to clear
-			LD	(HL),0			; Set the first byte to 0
-			LDIR				; Copy this byte to the second, and so on
-			LD	BC,767			; Length of attribute memory, less one to clear
-			LD	(HL),A			; Set the first byte to A
-			LDIR				; Copy this byte to the second, and so on
-			XOR	A 
-			LD	(SCRLPOS_Y), A 
-			LD	(CHARPOS_X), A 
-			LD	(CHARPOS_Y), A
-			NEXTREG	ULA_Y_SCROLL, A 
-			RET
-
-; Set the video mode
-;
-Set_Video_Mode:		LD	(VIDEO_MODE), A 
-			JR	Clear_Screen
 
 ; Read the keyboard and return an ASCII character code
 ; Returns:
@@ -122,14 +101,17 @@ Get_Charpos_1:		PUSH	AF
 			RET
  
 ; Print a character at the current charpos
+; Destroys nothing
 ;
-Print_Char:		PUSH	BC 			; Stack all the registers
+Print_Char:		PUSH 	AF			; Stack all the registers
+			PUSH	BC 			
 			PUSH	DE
 			PUSH	HL
 			CALL	1F			; Call the print routine
 			POP	HL 
 			POP	DE 
 			POP	BC
+			POP	AF
 			RET 
 
 1:			LD	C, A			; Temporarily store the character
@@ -141,17 +123,11 @@ Print_Char:		PUSH	BC 			; Stack all the registers
 			JR	C, VDU_CTRL_CHAR	; Yes, so just handle that
 			CP	0x7F			; Is it backspace?
 			JR	Z, VDU_DEL 		; Yes, so deal with that
-			CALL	Get_Charpos		; Otherwise print it out		
-			CALL	ULA_Print_Char_At
-			LD	A, H 			; And set the attribute up too
-			RRA
-			RRA 
-			RRA 
-			AND 	3 
-			OR	88
-			LD	H, A 
-			LD	A,(TEXT_COLOUR)
-			LD	(HL), A
+			CP	0xA9			; Bodge for Spectrum (C) symbol
+			JR	NZ, 2F
+			LD	A, 0x7F
+2:			CALL	Get_Charpos		; Otherwise print it out		
+			CALL	NEXT_GRAPHICS.Print_Char
 			JP	VDU_HT
 
 ; Handle all control characters
@@ -173,7 +149,7 @@ VDU_CTRL_CHAR:		ADD	A, A			; Index into the VDU table
 VDU_DEL:		CALL	VDU_BS
 			LD	A, " "
 			CALL	Get_Charpos
-			JP	ULA_Print_Char_At
+			JP	NEXT_GRAPHICS.Print_Char
 
 ; Just buffer the characters in the VDU buffer
 ; Until we have read enough in, then execute the relevant code
@@ -211,13 +187,15 @@ TABLE_VDU_EXEC:		DW	VDU_EXEC_PLOT
 
 ; PLOT: VDU 25,mode,x;y;
 ;
-VDU_EXEC_PLOT:		LD	A, (VDU_BUFFER + 0)	; Plot style in B
-			LD	B, A
-			LD	A, (PLOT_MODE) 	
-			LD	C, A			; Plot mode in C
-			LD	A, (PLOT_COLOUR)
-			LD	DE, (VDU_BUFFER + 1)
-			LD	HL, (VDU_BUFFER + 3)
+VDU_EXEC_PLOT:		LD	HL, (PLOTPOS_X)		; Store the previous plot points
+			LD 	(PLOTPRE_X), HL 
+			LD	HL, (PLOTPOS_Y)
+			LD	(PLOTPRE_Y), HL
+			LD	A, (VDU_BUFFER + 0)	; Plot style 
+			LD	DE, (VDU_BUFFER + 1)	; X
+			LD	HL, (VDU_BUFFER + 3)	; Y
+			LD	(PLOTPOS_X), DE 	; Store new plot points
+			LD	(PLOTPOS_Y), HL
 			JP	NEXT_GRAPHICS.Plot
 
 ; COLOUR: VDU 17,colour
@@ -226,10 +204,8 @@ VDU_EXEC_COLOUR:	LD	A, (VDU_PTR)		; Check number of parameters
 			DEC	A			; If not zero then
 			JR	NZ, 1F			; It's VDU 19, c, r, g, b
 			LD	A, (VDU_BUFFER + 0)	; Otherwise it's just VDU 17, c
-			LD	L, A
-			LD	A, (TEXT_COLOUR)
-			CALL	Get_ULA_Colour
-			LD	(TEXT_COLOUR), A
+			LD	HL, TEXT_COLOUR
+			JP	NEXT_GRAPHICS.Set_Colour
 1:			LD	A, (VDU_BUFFER + 1)	; Get the R component
 			LD	B, A 
 			LD	A, (VDU_BUFFER + 2)	; Get the G component
@@ -244,11 +220,8 @@ VDU_EXEC_COLOUR:	LD	A, (VDU_PTR)		; Check number of parameters
 VDU_EXEC_GCOL:		LD	A, (VDU_BUFFER + 0)
 			LD	(PLOT_MODE), A 
 			LD	A, (VDU_BUFFER + 1)
-			LD	L, A 
-			LD	A, (PLOT_COLOUR)
-			CALL	Get_ULA_Colour
-			LD	(PLOT_COLOUR), A
-			RET 
+			LD	HL, PLOT_COLOUR
+			JP	NEXT_GRAPHICS.Set_Colour
 
 ; TAB: VDU 31,x,y
 ;
@@ -261,7 +234,7 @@ VDU_EXEC_TAB:		LD	A, (VDU_BUFFER + 0)
 ; MODE: VDU 16,mode
 ;
 VDU_EXEC_MODE:		LD	A, (VDU_BUFFER + 0)
-			JP 	Set_Video_Mode
+			JP 	NEXT_GRAPHICS.Set_Video_Mode
 
 ; Lookup table of VDU codes
 ;
@@ -329,7 +302,7 @@ VDU_LF:			LD	A, (CHARPOS_Y)
 			RET 	C 
 1:			LD	A, 23
 			LD	(CHARPOS_Y), A
-			JP 	Scroll_Up
+			JP 	NEXT_GRAPHICS.Scroll_Up
 
 ; &0B VT  - Move cursor up one line
 ;
@@ -339,11 +312,11 @@ VDU_VT:			LD	A, (CHARPOS_Y)
 			RET 	P 
 			XOR	A 
 			LD	(CHARPOS_Y), A 
-			JP	Scroll_Down
+			JP	NEXT_GRAPHICS.Scroll_Down
 
 ; &0C FF  - CLS
 ;
-VDU_FF:			JP 	Clear_Screen
+VDU_FF:			JP 	NEXT_GRAPHICS.Clear_Screen
 
 
 ; &0D CR  - Carriage Return
@@ -409,119 +382,6 @@ VDU_SET_STATE:		LD	(VDU_STATE), A
 			LD	(VDU_PTR), A 
 			RET 
 
-; Next hardware scroll down
-;
-Scroll_Down:		LD	H, 0			; Line to clear after scroll
-			LD	A, (SCRLPOS_Y)
-			DEC 	A 
-			JP 	P, 3F
-			LD	A, 23
-			JR	3F
-
-; Next hardware scroll up
-;
-Scroll_Up:		LD	H, 23			; Line to clear after scroll
-			LD	A, (SCRLPOS_Y)
-			INC	A 
-			CP	24
-			JR	C, 3F
-			XOR	A 
-3:			LD	(SCRLPOS_Y), A 
-			SLA	A 
-			SLA 	A 
-			SLA 	A 
-			NEXTREG	ULA_Y_SCROLL, A 
-
-; Clear a line
-;  H: Line to clear
-;
-Clear_Line:		LD 	L, 0
-			CALL	Get_Charpos_1
-			CALL	ULA_Get_Char_Address
-			PUSH	HL
-			XOR	A
-			LD	C, 8
-1:			LD	B, 32
-			PUSH	HL			
-2:			LD	(HL), A 
-			INC	L 
-			DJNZ	2B
-			POP	HL
-			INC	H 
-			DEC	C 
-			JR	NZ, 1B
-			POP	HL 
-			LD	A, H 
-			RRA
-			RRA 
-			RRA 
-			AND 	3 
-			OR	88
-			LD	H, A 
-			LD	B,32 
-			LD	A, (TEXT_COLOUR)
-3:			LD	(HL), A 
-			INC	L 
-			DJNZ	3B
-			RET 
-
-; Get screen address
-; H = Y character position
-; L = X character position
-; Returns address in HL
-;
-ULA_Get_Char_Address:	LD	A,H
-			AND	%00000111
-			RRA
-			RRA
-			RRA
-			RRA
-			OR	L
-			LD	L,A
-			LD	A,H
-			AND	%00011000
-			OR	%01000000
-			LD	H,A
-			RET				; Returns screen address in HL
-
-; Print a single character out to an X/Y position
-;  A: Character to print
-;  L: X Coordinate
-;  H: Y Coordinate
-;
-ULA_Print_Char_At:	PUSH 	AF
-			CALL 	ULA_Get_Char_Address
-			POP 	AF			; Fall through to Print_Char
-
-; Print a single character out to a screen address
-;  A:  Character to print
-; HL: Screen address to print character at
-; No SM code here - needs to be re-enterent if called on interrupt
-;
-ULA_Print_Char:		PUSH 	HL
-			LD 	D, 8			; Multiply the character byte by 8
-			LD 	E, A
-			MUL 	D,E
-			LD 	A,0x3C			; Address of character set in ROM (HIGH)
-			ADD 	A,D
-			LD 	D,A
-			CALL 	ULA_Print_UDG8
-			POP 	HL
-			RET 	
-
-; Print a UDG (Single Height)
-; DE - Character data
-; HL - Screen address
-;
-ULA_Print_UDG8:		LD	B,8			; Loop counter
-1:			LD 	A,(DE)			; Get the byte from the character in A
-			LD 	(HL),A			; Stick A onto the screen
-			INC 	DE			; Goto next byte of character
-			INC 	H			; Goto next line on screen
-			DJNZ 	1B			; Loop around whilst it is Not Zero (NZ)
-			RET
-
-
 ; Scan the keyboard
 ; A modified version of the ZX Spectum 48K rom routine
 ; Returns:
@@ -577,7 +437,7 @@ KeyTable_SS_Alpha:	DB	"~", "*", "?", $5C
 			DB	$00, "{", "}", "^"
 			DB	$00, "-", "+", "="
 			DB	".", ",", ";", $22
-			DB	$00, "<", "|", ">"
+			DB	$A9, "<", "|", ">"
 			DB	"]", "/", $00, $60
 			DB	"[", ":"
 
