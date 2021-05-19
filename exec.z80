@@ -4,7 +4,7 @@
 ; Author:	(C) Copyright  R.T.Russell  1984
 ; Modified By:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	14/05/2021
+; Last Updated:	17/05/2021
 ;
 ; Modinfo:
 ; 27/01/1984:	Version 2.1
@@ -14,6 +14,7 @@
 ; 05/05/2021:	Moved PUT to patch.z80
 ; 13/05/2021:	Added Z80N instructions to OPCODS and used OPCODE macro to make it a bit easier to understand
 ; 14/05/2021:	Fixed the assembler output tabbing - optimised for 32 columns
+; 17/05/2021:	Fixed typos in OPRNDS that prevented LD (IX/Y) from working
 ;
 
 			MODULE EXEC
@@ -2612,10 +2613,10 @@ OPRNDS:			OPCODE	0x00, "B"
 			OPCODE	0x03, "E"
 			OPCODE	0x04, "H"
 			OPCODE	0x05, "L"
-			OPCODE	0x06, "(HL)"
+			OPCODE	0x06, "(HL"
 			OPCODE	0x07, "A"
-			OPCODE	0x86, "(IX)"
-			OPCODE	0xC6, "(IY)"
+			OPCODE	0x86, "(IX"
+			OPCODE	0xC6, "(IY"
 ;
 			OPCODE	0x08, "BC"
 			OPCODE	0x0A, "DE"
