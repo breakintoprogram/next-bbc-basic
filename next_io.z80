@@ -3,7 +3,7 @@
 ;		Spectrum Next I/O Routines
 ; Author:	Dean Belfield
 ; Created:	03/05/2021
-; Last Updated:	15/05/2021
+; Last Updated:	17/05/2021
 ;
 ; Modinfo:
 ; 10/05/2021:	Started implementing VDU engine
@@ -11,22 +11,16 @@
 ; 13/05/2021:	Removed (C) symbol from keytable; 0x7F is now backspace
 ; 14/05/2021:	Fixed bug in Print_Char - now preserves A
 ; 15/05/2021:	Restored (C) symbol in keytable as ASCII 0xA9; Updates for MODE command
-;
+; 16/05/2021:	VDU system now uses SWITCH_A
+; 17/05/2021:	Removed PUSH/POP wrapper around Read_Keyboard and added HT and BS codes; Tweaks for COLOUR, GCOL
+
 			MODULE	NEXT_IO
 
 ; Read the keyboard and return an ASCII character code
 ; Returns:
 ;  A: 0x00 if no key pressed
 ;
-Read_Keyboard:		PUSH	BC
-			PUSH	DE
-			PUSH	HL
-			CALL	1F
-			POP	HL
-			POP	DE
-			POP	BC
-			RET
-1:			CALL	Keyscan			; Scan the keyboard
+Read_Keyboard:		CALL	Keyscan			; Scan the keyboard
 			LD	A, E			; Check for keypress
 			INC	A			; Check for 0xFF
 			RET	Z			; Then no key has been pressed
@@ -79,7 +73,15 @@ Read_Keyboard:		PUSH	BC
 			JR	NZ, 6F
 			LD	A, 0x7F			; Return DEL
 			RET 
-6:			CP	"2"			; Caps Shift + 2
+6:			CP	"5"			; Caps Shift + 5
+			JR	NZ, 7F
+			LD	A, 0x08			; Return BS
+			RET
+7:			CP	"8"			; Caps Shift + 8
+			JR	NZ, 8F
+			LD	A, 0x09			; Return HT
+			RET 
+8:			CP	"2"			; Caps Shift + 2
 			RET	NZ
 			LD	A, (FLAGS)		; Toggle Caps Lock bit in flags
 			XOR	%00100000
@@ -130,20 +132,6 @@ Print_Char:		PUSH 	AF			; Stack all the registers
 			CALL	NEXT_GRAPHICS.Print_Char
 			JP	VDU_HT
 
-; Handle all control characters
-;  A: Character code
-;  C: Character code (copied in Print_Char)
-;
-VDU_CTRL_CHAR:		ADD	A, A			; Index into the VDU table
-			LD	HL, TABLE_VDU
-			ADD	HL, A 
-			LD	A, (HL)
-			INC	HL 
-			LD	H, (HL) 
-			LD	L, A 			; Get the jmup address
-			LD	A, C 			; Get the character back in A
-			JP	(HL)			; And jump to the correct routine
-
 ; &7F DEL - Delete
 ;
 VDU_DEL:		CALL	VDU_BS
@@ -154,91 +142,31 @@ VDU_DEL:		CALL	VDU_BS
 ; Just buffer the characters in the VDU buffer
 ; Until we have read enough in, then execute the relevant code
 ;
-VDU_READ_BYTES:		LD	HL, VDU_BUFFER		; HL: VDU buffer
-			LD	A, (VDU_PTR)		; A: Current position in buffer
+VDU_READ_BYTES:		LD	IX, VDU_STATE		; Indexes - 0: STATE, 1: PTR, 2: COUNT
+			LD	HL, VDU_BUFFER		; HL: VDU buffer
+			LD	A, (IX + 1)		; A: Current position in buffer
 			ADD	HL, A 			; Index in
 			LD	(HL), C			; Store the character
-			INC	A 			; Increment the pointer
-			LD	(VDU_PTR), A 		; And store
-			LD	A, (VDU_COUNT)		; Decrement the VDU count; this is the number
-			DEC	A 			; of chars left to read before we return VDU_STATE
-			LD	(VDU_COUNT), A 		; back to 0 and execute the VDU command
+			INC	(IX + 1)		; Increase the pointer
+			DEC	(IX + 2)		; Decrease the counter
 			RET	NZ			; If not zero, then return
-			LD	A, (VDU_STATE)		; Get the correct handler for this state
-			DEC	A 			; Index from 0
-			ADD	A, A
-			LD	HL, TABLE_VDU_EXEC	; by looking it up in TABLE_VDU_EXEC
-			ADD	HL, A 
-			LD	A, (HL)
-			INC	HL 
-			LD	H, (HL)
-			LD	L, A 
-			XOR	A 
-			LD	(VDU_STATE), A		; Reset the VDU state
-			JP 	(HL)
-			
-; Lookup table of VDU_EXEC routines
-;
-TABLE_VDU_EXEC:		DW	VDU_EXEC_PLOT
-			DW	VDU_EXEC_COLOUR
-			DW	VDU_EXEC_GCOL 
-			DW	VDU_EXEC_TAB 
-			DW	VDU_EXEC_MODE
+			LD	A, (IX + 0)		; Get the state		
+			LD	(IX + 0), 0 		; Clear it
+			DEC	A 			; Index from 1
+			LD	IX, VDU_BUFFER
+			CALL	SWITCH_A
+			DEFW	VDU_EXEC_PLOT
+			DEFW	VDU_EXEC_COLOUR
+			DEFW	VDU_EXEC_GCOL 
+			DEFW	VDU_EXEC_TAB 
+			DEFW	VDU_EXEC_MODE
 
-; PLOT: VDU 25,mode,x;y;
+; Handle all control characters
+;  A: Character code
+;  C: Character code (copied in Print_Char)
 ;
-VDU_EXEC_PLOT:		LD	HL, (PLOTPOS_X)		; Store the previous plot points
-			LD 	(PLOTPRE_X), HL 
-			LD	HL, (PLOTPOS_Y)
-			LD	(PLOTPRE_Y), HL
-			LD	A, (VDU_BUFFER + 0)	; Plot style 
-			LD	DE, (VDU_BUFFER + 1)	; X
-			LD	HL, (VDU_BUFFER + 3)	; Y
-			LD	(PLOTPOS_X), DE 	; Store new plot points
-			LD	(PLOTPOS_Y), HL
-			JP	NEXT_GRAPHICS.Plot
-
-; COLOUR: VDU 17,colour
-;
-VDU_EXEC_COLOUR:	LD	A, (VDU_PTR)		; Check number of parameters
-			DEC	A			; If not zero then
-			JR	NZ, 1F			; It's VDU 19, c, r, g, b
-			LD	A, (VDU_BUFFER + 0)	; Otherwise it's just VDU 17, c
-			LD	HL, TEXT_COLOUR
-			JP	NEXT_GRAPHICS.Set_Colour
-1:			LD	A, (VDU_BUFFER + 1)	; Get the R component
-			LD	B, A 
-			LD	A, (VDU_BUFFER + 2)	; Get the G component
-			LD	C, A 
-			LD	A, (VDU_BUFFER + 3)	; Get the B component
-			LD	D, A
-			LD	A, (VDU_BUFFER + 0)	; Get the palette colour to change
-			JP	NEXT_GRAPHICS.Set_Palette_RGB
-
-; GCOL: VDU 18,mode,,colour
-;
-VDU_EXEC_GCOL:		LD	A, (VDU_BUFFER + 0)
-			LD	(PLOT_MODE), A 
-			LD	A, (VDU_BUFFER + 1)
-			LD	HL, PLOT_COLOUR
-			JP	NEXT_GRAPHICS.Set_Colour
-
-; TAB: VDU 31,x,y
-;
-VDU_EXEC_TAB:		LD	A, (VDU_BUFFER + 0)
-			LD 	(CHARPOS_X), A 
-			LD	A, (VDU_BUFFER + 1)
-			LD	(CHARPOS_Y), A
-			RET 
-
-; MODE: VDU 16,mode
-;
-VDU_EXEC_MODE:		LD	A, (VDU_BUFFER + 0)
-			JP 	NEXT_GRAPHICS.Set_Video_Mode
-
-; Lookup table of VDU codes
-;
-TABLE_VDU:		DW 	VDU_NUL			; &00 NUL - Do nothing
+VDU_CTRL_CHAR:		CALL	SWITCH_A
+			DW 	VDU_NUL			; &00 NUL - Do nothing
 			DW	VDU_NUL			; &01 SOH - Send next character to printer only
 			DW	VDU_NUL			; &02 STX - Start print job
 			DW	VDU_NUL			; &03 ETX - End print job
@@ -381,6 +309,58 @@ VDU_SET_STATE:		LD	(VDU_STATE), A
 			XOR	A 
 			LD	(VDU_PTR), A 
 			RET 
+
+; PLOT: VDU 25,mode,x;y;
+;
+VDU_EXEC_PLOT:		LD	HL, (PLOTPOS_X)		; Store the previous plot points
+			LD 	(PLOTPRE_X), HL 
+			LD	HL, (PLOTPOS_Y)
+			LD	(PLOTPRE_Y), HL
+			LD	A, (VDU_BUFFER + 0)	; Plot style 
+			LD	DE, (VDU_BUFFER + 1)	; X
+			LD	HL, (VDU_BUFFER + 3)	; Y
+			LD	(PLOTPOS_X), DE 	; Store new plot points
+			LD	(PLOTPOS_Y), HL
+			JP	NEXT_GRAPHICS.Plot
+
+; COLOUR:
+; VDU 17,colour
+; VDU 19,colour,r,g,b
+;
+VDU_EXEC_COLOUR:	LD	A, (VDU_PTR)		; Check number of parameters
+			CP	4			; If 4, then it is VDU 19,colour,r,g,b
+			JR	Z, 1F
+			DEC	A			
+			RET	NZ
+			LD	B, 0			; If 1, then it is VDU 17,colour
+			LD	C, (IX + 0)
+			JP	NEXT_GRAPHICS.Set_Text_Colour
+1:			LD	A, (IX + 0)		; Get the palette colour to change
+			LD	B, (IX + 1)		; Get the R component
+			LD	C, (IX + 2)		; Get the G component
+			LD	D, (IX + 3)		; Get the B component
+			JP	NEXT_GRAPHICS.Set_Palette_RGB
+
+; GCOL: VDU 18,mode,,colour
+;
+VDU_EXEC_GCOL:		LD	A, (VDU_BUFFER + 0)
+			LD	(PLOT_MODE), A 
+			LD	C, (IX + 1)
+			LD	B, 0
+			JP	NEXT_GRAPHICS.Set_Plot_Colour
+
+; TAB: VDU 31,x,y
+;
+VDU_EXEC_TAB:		LD	A, (VDU_BUFFER + 0)
+			LD 	(CHARPOS_X), A 
+			LD	A, (VDU_BUFFER + 1)
+			LD	(CHARPOS_Y), A
+			RET 
+
+; MODE: VDU 16,mode
+;
+VDU_EXEC_MODE:		LD	A, (VDU_BUFFER + 0)
+			JP 	NEXT_GRAPHICS.Set_Video_Mode
 
 ; Scan the keyboard
 ; A modified version of the ZX Spectum 48K rom routine
