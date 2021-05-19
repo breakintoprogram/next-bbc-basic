@@ -3,10 +3,10 @@
 ;		Spectrum Next Debug routines
 ; Author:	Dean Belfield
 ; Created:	07/05/2021
-; Last Updated:	07/05/2021
+; Last Updated:	16/05/2021
 ;
 ; Modinfo:
-;
+; 16/05/2021:	Fixed bug exposed by new VDU routines
 
 			MODULE	NEXT_DEBUG 
 
@@ -50,23 +50,20 @@ Memory_Dump:		LD	A, H
 			OR 	E 
 			JR	Z, 5F
 			DJNZ	4B
-
-			LD	A, 0x0D
-			CALL	NEXT_IO.Print_Char
-
+			CALL	5F			; Print CR/LF
 			LD	A,(KEYCODE)
 			CP	0x1B			; Check for ESC 
 			RET	Z
-
 			JR	Memory_Dump
-
 5:			LD	A, 0x0D
+			CALL	NEXT_IO.Print_Char
+			LD	A, 0x0A 
 			JP	NEXT_IO.Print_Char
 
 ;  A: Ascii char to print
 ;
-Print_ASCII:		BIT	7, A 			; If > 128
-			JR	NZ, 2F			; Skip to print '.'
+Print_ASCII:		CP	127			; If > 127
+			JR	NC, 2F			; Skip to print '.'
 			CP	32			; If >= 32
 			JR	NC, 1F			; Skip to print character
 2:			LD	A,  '.'
