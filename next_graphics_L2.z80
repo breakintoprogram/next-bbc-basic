@@ -3,27 +3,32 @@
 ;		Spectrum Next Layer 2 Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	13/05/2021
-; Last Updated:	15/05/2021
+; Last Updated:	17/05/2021
 ;
 ; TODO:		L2 will read read/write access to the screen for any plot operation other than SET
 ;
 ; Modinfo:
 ; 14/05/2021:	Added plot modes
 ; 15/05/2021:	Plot now pulls PLOT_MODE and PLOT_COLOUR direct from RAM; Updates for MODE command
+; 17/05/2021:	Tweaks for COLOUR, GCOL
 
 			MODULE	NEXT_GRAPHICS_L2
 
 ; Set the video mode up
 ;
 Set_Video_Mode:		NEXTREG 0x15, %00100001		; Enable sprites & clipping, SLU priority
-			LD	A, 0xFF
-			LD	(TEXT_COLOUR), A 
+			XOR	A
+			LD	(TEXT_BACKGROUND), A
+			DEC	A
+			LD	(TEXT_FOREGROUND), A 
 			LD	(PLOT_COLOUR), A
 			RET
 
 ; Clear the screen
 ;
-Clear_Screen:		LD	C, %00000011
+Clear_Screen:		LD	A, (BORDER_COLOUR)
+			OUT 	(254), A
+			LD	C, %00000011
 			CALL 	1F
 			LD	C, %01000011
 			CALL 	1F
@@ -31,7 +36,7 @@ Clear_Screen:		LD	C, %00000011
 1:			LD	A,C
 			LD	BC, 0x123B
 			OUT	(C),A
-			LD	A, 0			; Colour to clear
+			LD	A, (TEXT_BACKGROUND)
 			LD	DE,0x0000
 			LD	BC,0x4000
 			CALL	NEXT_DMA.FillDMA
@@ -63,6 +68,15 @@ Clear_Line:		LD 	L, 0
 			JR	NZ, 1B
 			RET
 
+; Display a cursor at an X/Y position
+;  L: X coordinate
+;  H: Y coordinate
+;  E: Style
+;     0: Off
+;     1: On
+;
+Display_Cursor:		RET
+
 ; Print a single character out to an X/Y position
 ;  E: Character to print
 ;  L: X Coordinate
@@ -74,9 +88,7 @@ Print_Char:		CALL 	Get_Char_Address
 			LD 	A,0x3C			; Address of character set in ROM (HIGH)
 			ADD 	A,D
 			LD 	D,A
-			LD	A, (TEXT_COLOUR)	; Foreground colour
-			LD	C, A
-			LD	B, 0			; Background colour
+			LD	BC, (TEXT_FOREGROUND)	; C: Foreground, B: Background
 			LD	IXH,8			; Outer Loop counter
 1:			PUSH	HL
 			LD	A,(DE)			; Get the byte from the ROM into A
@@ -96,6 +108,12 @@ Print_Char:		CALL 	Get_Char_Address
 			JR 	NZ,1B			; Loop around whilst it is Not Zero (NZ)
 			RET
 
+; Gets the ASCII code of a chararcter on-screen
+;  L: X Coordinate
+;  H: Y Coordinate
+; Returns ASCII in A
+;
+Get_Char:		RET
 
 ; Get screen address
 ;  H = Y character position
@@ -142,28 +160,33 @@ Plot:
 			LD	A, (PLOT_MODE)		; Check plot mode is valid
 			CP	7
 			RET	NC			; Do nothing if plot mode >=7
-			LD	HL, Plot_Table 		; Get plot routine address
-			ADD	A, A
-			ADD	HL, A 
-			LD	A, (HL)
-			INC	HL
-			LD	H, (HL)
-			LD	L, A
-			PUSH	HL
 			CALL	Get_Pixel_Address
 			LD	A, (PLOT_COLOUR)
-			RET
+			LD	E, A
+			LD	A, (PLOT_MODE)
+			CALL	SWITCH_A
+Plot_Table:		DEFW	Plot_SET
+			DEFW	Plot_OR
+			DEFW	Plot_AND
+			DEFW	Plot_XOR
+			DEFW	Plot_NOT
+			DEFW	Plot_NOP
+			DEFW	Plot_CLR
 
-Plot_CLR:		XOR	A
-Plot_SET:		LD	(HL), A			; Write the colour out
+Plot_CLR:		LD	(HL), 0
 Plot_NOP:		RET
-Plot_AND:		AND	(HL)
+Plot_SET:		LD	(HL), E
+			RET
+Plot_AND:		LD	A, (HL)
+			AND	E
 			LD	(HL), A
 			RET 
-Plot_OR:		OR	(HL)
+Plot_OR:		LD	A, (HL)
+			OR	E
 			LD	(HL), A 
 			RET
-Plot_XOR:		XOR	(HL) 
+Plot_XOR:		LD	A, (HL)
+			XOR	E
 			LD	(HL), A 
 			RET 
 Plot_NOT:		LD	A, (HL)
@@ -171,7 +194,38 @@ Plot_NOT:		LD	A, (HL)
 			LD	(HL), A 
 			RET 
 
-Plot_Table:		DW	Plot_SET, Plot_OR,  Plot_AND, Plot_XOR
-			DW	Plot_NOT, Plot_NOP, Plot_CLR
+; Set the graphics colour
+;  C: Colour to set
+;  B: Mode
+;
+Set_Plot_Colour:	LD	A, B
+			CP	3
+			JP	Z, Set_Border
+			LD	A, C
+			LD	(PLOT_COLOUR), A 
+			RET
+
+; Set the text colour
+;  C: Colour to set
+;  B: Mode (ignored)
+;
+Set_Text_Colour:	LD 	A, B
+			CP	4
+			RET	NC
+			CALL	SWITCH_A
+			DEFW	Set_Text_Colour_All
+			DEFW	Set_Text_Foreground
+			DEFW	Set_Text_Background
+			DEFW	Set_Border
+
+Set_Text_Colour_All:	BIT	7, C
+			JR	Z, Set_Text_Foreground
+			RES	7, C
+Set_Text_Background:	LD	A, C 
+			LD	(TEXT_BACKGROUND), A 
+			RET
+Set_Text_Foreground:	LD	A, C 
+			LD	(TEXT_FOREGROUND), A 
+			RET 
 
 			ENDMODULE

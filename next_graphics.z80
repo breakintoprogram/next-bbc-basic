@@ -3,7 +3,7 @@
 ;		Spectrum Next Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	06/05/2021
-; Last Updated:	15/05/2021
+; Last Updated:	18/05/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Added Plot modes for Plot_ULA.
@@ -11,6 +11,9 @@
 ; 10/05/2021:	Fixed call to FillDMA in L2_Clear_Screen 
 ; 13/05/2021:	Moved ULA and L2 specific code into their own files
 ; 15/05/2021:	Plot now pulls PLOT_MODE and PLOT_COLOUR direct from RAM; Updates for MODE command
+; 16/05/2021:	Now uses SWITCH_A to select graphics commands by mode
+; 17/05/2021:	Added Get_Char and Display_Cursor; Tweaks for COLOUR, GCOL
+; 18/05/2021:	Draw_Line now uses a callback to plot points
 
 			MODULE	NEXT_GRAPHICS 
 
@@ -24,46 +27,49 @@ Clear_Screen:		XOR	A
 			LD	(CHARPOS_X), A 
 			LD	(CHARPOS_Y), A
 			LD	A, (VIDEO_MODE)
-			OR	A 
-			JP	Z, NEXT_GRAPHICS_ULA.Clear_Screen
-			DEC	A 
-			JP	Z, NEXT_GRAPHICS_L2.Clear_Screen 
-			RET 
+			CALL	SWITCH_A
+			DEFW	NEXT_GRAPHICS_ULA.Clear_Screen
+			DEFW	NEXT_GRAPHICS_L2.Clear_Screen 
 
 ; Change the video mode
 ;  A: New video mode
 ;
 Set_Video_Mode:		AND	1
 			LD	(VIDEO_MODE), A
-			LD	A, %01000111
-			LD	(PLOT_COLOUR), A 
-			LD	A, %01000111
-			LD	(TEXT_COLOUR), A
-			CALL	Clear_Screen
-			LD	A, (VIDEO_MODE)
-			OR	A 
-			JP	Z, NEXT_GRAPHICS_ULA.Set_Video_Mode
-			DEC 	A 
-			JP	Z, NEXT_GRAPHICS_L2.Set_Video_Mode
-			RET 
+			CALL	1F
+			XOR	A 
+			LD	(BORDER_COLOUR), A
+			JR	Clear_Screen
+1:			CALL	SWITCH_A
+			DEFW	NEXT_GRAPHICS_ULA.Set_Video_Mode
+			DEFW	NEXT_GRAPHICS_L2.Set_Video_Mode
+
+; Set border colour
+;  C: Colour
+;
+@Set_Border:		LD	A, C
+			AND	7
+			LD	(BORDER_COLOUR), A
+			OUT	(254), A 
+			RET
 
 ; Set a colour
-; HL: Address to set the colour to
-;  A: Colour
+;  C: Colour
+;  B: Mode
 ;
-Set_Colour:		LD	C, A 	
-			LD	A, (VIDEO_MODE)
-			OR	A 
-			JR	NZ, 1F
-			LD	A, (HL)
-			CALL	NEXT_GRAPHICS_ULA.Get_Colour
-1:			LD	(HL), C 
-			RET
+Set_Text_Colour:	LD	A, (VIDEO_MODE)
+			CALL	SWITCH_A
+			DEFW	NEXT_GRAPHICS_ULA.Set_Text_Colour
+			DEFW	NEXT_GRAPHICS_L2.Set_Text_Colour
 
-; Change the border colour
+; Set graphics colour
+;  C: Colour
+;  B: Mode
 ;
-Set_Border:		OUT	(254), A
-			RET
+Set_Plot_Colour:	LD	A, (VIDEO_MODE)
+			CALL	SWITCH_A
+			DEFW	NEXT_GRAPHICS_ULA.Set_Plot_Colour
+			DEFW	NEXT_GRAPHICS_L2.Set_Plot_Colour
 
 ; Vertical scroll routines
 ;
@@ -81,24 +87,44 @@ Scroll_Up:		LD	H, 23			; Line to clear after scroll
 			XOR	A 
 Scroll:			LD	(SCRLPOS_Y), A 
 			LD	A, (VIDEO_MODE)
-			OR	A
-			JP	Z, NEXT_GRAPHICS_ULA.Set_Scroll_Reg
-			DEC	A 
-			JP	Z, NEXT_GRAPHICS_L2.Set_Scroll_Reg
-			RET
+			CALL	SWITCH_A
+			DEFW	NEXT_GRAPHICS_ULA.Set_Scroll_Reg
+			DEFW	NEXT_GRAPHICS_L2.Set_Scroll_Reg
 
-;; Print a single character out to an X/Y position
+; Display a cursor at an X/Y position
+;  L: X coordinate
+;  H: Y coordinate
+;  A: Style
+;     0: Off
+;     1: On
+;
+Display_Cursor:		LD	E, A 
+			CALL	NEXT_IO.Get_Charpos_1
+			LD	A, (VIDEO_MODE)
+			CALL	SWITCH_A
+			DEFW	NEXT_GRAPHICS_ULA.Display_Cursor
+			DEFW 	NEXT_GRAPHICS_L2.Display_Cursor
+
+; Print a single character out to an X/Y position
 ;  A: Character to print
 ;  L: X Coordinate
 ;  H: Y Coordinate
 ;
 Print_Char:		LD	E, A 
 			LD	A, (VIDEO_MODE)
-			OR	A
-			JP	Z, NEXT_GRAPHICS_ULA.Print_Char
-			DEC	A 
-			JP	Z, NEXT_GRAPHICS_L2.Print_Char
-			RET
+			CALL	SWITCH_A
+			DEFW	NEXT_GRAPHICS_ULA.Print_Char
+			DEFW 	NEXT_GRAPHICS_L2.Print_Char
+
+; Gets the ASCII code of a chararcter on-screen
+;  L: X Coordinate
+;  H: Y Coordinate
+; Returns ASCII in A
+;
+Get_Char:		LD	A, (VIDEO_MODE)
+			CALL	SWITCH_A
+			DEFW 	NEXT_GRAPHICS_ULA.Get_Char
+			DEFW	NEXT_GRAPHICS_L2.Get_Char
 
 ; Plot a point
 ; HL: Y
@@ -130,11 +156,9 @@ Plot:			LD	B, A		; Store the plot type
 ;  D: Y
 ;
 Plot_Point:		LD	A, (VIDEO_MODE)
-			OR	A 
-			JP	Z, NEXT_GRAPHICS_ULA.Plot
-			DEC	A 
-			JP	Z, NEXT_GRAPHICS_L2.Plot
-			RET
+			CALL	SWITCH_A 
+			DEFW 	NEXT_GRAPHICS_ULA.Plot
+			DEFW 	NEXT_GRAPHICS_L2.Plot
 
 ; Plot a line
 ;  E: X
@@ -160,9 +184,26 @@ Plot_Circle:		LD	L, D		; Stick the Y coordinate in R
 			POP	IY 
 			RET 
 
-; Draw a line
-; 
+; Draw a line on screen from position 1 to position 2 using Bresenham's Incremental Line algorithm
+;  D: Y pixel position 1
+;  E: X pixel position 1
+;  H: Y pixel position 2
+;  L: X pixel position 2
+;
+Draw:			PUSH	IY			; Need to stack for BASIC
+			LD	A, (VIDEO_MODE)
+			CALL	SWITCH_A 
+			DEFW 	Draw_ULA
+			DEFW 	Draw_L2 
+Draw_ULA:		LD	IY, NEXT_GRAPHICS_ULA.Plot
+1:			CALL	Draw_Line
+			POP	IY
+			RET
+Draw_L2:		LD	IY, NEXT_GRAPHICS_L2.Plot
+			JR	1B
+
 ; Draw a line from position 1 to position 2 using Bresenham's Incremental Line algorithm
+; IY: Address of plot routine
 ;  D: Y pixel position 1
 ;  E: X pixel position 1
 ;  H: Y pixel position 2
@@ -187,7 +228,7 @@ Draw_Line:		LD	A, H			; Check whether we are going to be drawing up
 ;
 			LD	L, A			; L: XL
 			OR	H			; Check if XL and YL are 0
-			JP	Z, Plot_Point		; There is no line, so just plot a single point
+			JR	Z, Draw_Line_P		; There is no line, so just plot a single point
 ;
 ; At this point, the registers are
 ;
@@ -206,7 +247,7 @@ Draw_Line_Q:		LD 	A, H			; Work out which diagonal we are on
 Draw_Line_Q1:		LD	B, L			; B = XL (loop counter)
 			LD	C, L			; C = XL (error)
 			SRL	C			; C = C / 2
-1:			CALL	Draw_Line_Plot
+1:			CALL	Draw_Line_P
 			LD	A, C			; Subtract the line height from the error (E = E - YL)
 			SUB	H
 			JR	NC, 2F
@@ -217,14 +258,14 @@ Draw_Line_Q1:		LD	B, L			; B = XL (loop counter)
 			ADD	A, IXL 
 			LD	E, A
 			DJNZ 	1B			; Loop until the line is drawn
-			JP 	Draw_Line_Plot		; Plot the final point
+			JP	Draw_Line_P
 ;
 ; This bit draws the line where B>=C (more vertical than horizontal, or diagonal)
 ;
 Draw_Line_Q2:		LD	B,  H			; B = YL (loop counter)
 			LD	C , H			; C = YL (error)
 			SRL	C			; C = C /2
-1:			CALL	Draw_Line_Plot
+1:			CALL	Draw_Line_P
 			LD	A, C			; Subtract the line width from the error (E = E - XL)
 			SUB	L
 			LD	C, A
@@ -236,10 +277,10 @@ Draw_Line_Q2:		LD	B,  H			; B = YL (loop counter)
 			LD	E, A 
 2:			INC	D
 			DJNZ	1B			; Loop until the line is drawn
-Draw_Line_Plot:		PUSH	DE 
-			EXX 
-			POP	DE
-			CALL	Plot_Point
+Draw_Line_P:		PUSH	DE 			; Push DE
+			EXX 				; Into the alternate registers
+			POP	DE			; Plot the point
+			CALL_IY				; Call the plot routine
 			EXX
 			RET
 
