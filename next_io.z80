@@ -3,7 +3,7 @@
 ;		Spectrum Next I/O Routines
 ; Author:	Dean Belfield
 ; Created:	03/05/2021
-; Last Updated:	17/05/2021
+; Last Updated:	19/05/2021
 ;
 ; Modinfo:
 ; 10/05/2021:	Started implementing VDU engine
@@ -13,6 +13,7 @@
 ; 15/05/2021:	Restored (C) symbol in keytable as ASCII 0xA9; Updates for MODE command
 ; 16/05/2021:	VDU system now uses SWITCH_A
 ; 17/05/2021:	Removed PUSH/POP wrapper around Read_Keyboard and added HT and BS codes; Tweaks for COLOUR, GCOL
+; 19/05/2021:	Added LF and VT on Shift 6 and 7 in Read_Keyboard and COPY on Shift 1
 
 			MODULE	NEXT_IO
 
@@ -81,12 +82,24 @@ Read_Keyboard:		CALL	Keyscan			; Scan the keyboard
 			JR	NZ, 8F
 			LD	A, 0x09			; Return HT
 			RET 
-8:			CP	"2"			; Caps Shift + 2
+8:			CP	"6"			; Caps Shift + 6
+			JR	NZ, 9F
+			LD	A, 0x0A			; Return LF
+			RET 
+9:			CP	"7"			; Caps Shift + 7
+			JR	NZ, 10F
+			LD	A, 0x0B			; Return VT
+			RET 
+10:			CP	"2"			; Caps Shift + 2
+			LD	B, %00100000
+			JR	Z, Toggle_Flags
+			CP	"1"
+			LD	B, %00010000
 			RET	NZ
-			LD	A, (FLAGS)		; Toggle Caps Lock bit in flags
-			XOR	%00100000
+Toggle_Flags:		LD	A, (FLAGS)		; Toggle Caps Lock bit in flags
+			XOR	B
 			LD	(FLAGS), A
-			XOR	A
+			XOR	A			; Clear the keycode
 			RET
 
 ; Get adjusted charpos (takes scrollpos into account)
