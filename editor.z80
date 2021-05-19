@@ -5,6 +5,7 @@
 ; Last Updated:	19/05/2021
 ;
 ; Modinfo:
+; 19/05/2021:	Added cursor up, cursor down, and copy
 
 			MODULE NEXT_EDITOR
 
@@ -27,16 +28,27 @@ Edit_Line_Loop:		LD	A, 1
 			XOR	A
 			CALL	Display_Cursor
 ;
+			LD	A, (FLAGS)		; Get the flags in B
+			LD	B, A
+			LD	DE, (CURSOR_X)		; Cursor position
+;
 			LD	A, C			; Check keyboard edit commands
-			CP	0x08			; BS: Back one character
+			CP	0x7F			; 0x7F: DEL Delete
+			JP	Z, Key_DEL
+			SUB	0x08			; 0x08: BS Back one character
 			JR	Z, Key_BS
-			CP	0x09			; HT: Advance one character
+			DEC	A			; 0x09: HT Advance one character
 			JR	Z, Key_HT
-			CP	0x0D			; CR: Enter
-			JR	Z, Key_CR		
-			CP	0x7F			; Delete
-			JR	Z, Key_DEL
-
+			DEC	A			; 0x0A: LF Down one character
+			JR	Z, Key_LF
+			DEC	A			; 0x0B; VT Up one character
+			JP	Z, Key_VT
+			SUB	0x02			; 0x0D: CR Enter
+			JR	Z, Key_CR
+;
+			BIT	4, B			; Are we in COPY mode?
+			JR	NZ, Edit_Line_Loop	; Yes, so don't accept key input
+;			
 			LD	E, 0			; Get length of current line
 			CALL	Get_Length
 			LD	A, B 
@@ -44,49 +56,122 @@ Edit_Line_Loop:		LD	A, 1
 			JR	NC, Edit_Line_Loop	; Skip if line limit (255) exceeded
 ;
 			CALL	Insert			; Insert the character into the buffer
-			LD	A, C 			; Get the character code back
-			LD	(HL), A			; Store the character
+			LD	(HL), C			; Store the character
 			CALL	Update			; Update characters from cursor position
 			INC	L
 			CALL	Move_Cursor_L
 			JR	Edit_Line_Loop
 
+; Display the cursor
+;  A: 0 - Hide, 1 - Show
+;
 Display_Cursor:		PUSH	HL
 			LD	HL,(CURSOR_X)
 			CALL 	NEXT_GRAPHICS.Display_Cursor
 			POP	HL 
 			RET
 
-Key_CR:			CALL	CRLF
+; Enter pressed
+;
+Key_CR:			LD	E, 0			; Move the cursor to the end of the line
+			CALL	Get_Length
+			LD	L, B 
+			CALL	Move_Cursor_L
+			LD	(CHARPOS_X), BC
+			LD	A, (FLAGS)		; Reset the copy bit
+			AND	%11101111
+			LD	(FLAGS), A
+			CALL	CRLF			; Display CRLF
 			XOR	A			; Return A = 0
 			RET  
 
-Key_BS:			INC	L 			; Check for cursor at beginning of line
-			DEC	L 
+; Cursor Left
+;
+Key_BS:			BIT	4, B			; Are we in COPY mode?
+			JR	Z, 1F			
+			DEC 	E 			; Yes, so just move the cursor
+			LD	(CURSOR_X), DE
+			JR	Edit_Line_Loop
+1:			INC	L 			
+			DEC	L 			; Check for cursor at beginning of line
 			JR	Z, Edit_Line_Loop	; If we are, then do nothing
 			DEC	L			; Move the cursor back
-			LD	A, 0x08
-Key_Out:		CALL	OSWRCH			; Echo character back to terminal
+Key_Out:		LD	A, C
+			CALL	OSWRCH			; Echo character back to terminal
 			CALL	Move_Cursor_L
-			JR	Edit_Line_Loop		; Loop
+			JP	Edit_Line_Loop		; Loop
 
-Key_HT:			LD	A, (HL)			; Are we at the end of line?
-			CP	0x0D			; Marked with a CR
-			JR	Z, Edit_Line_Loop	; Yes, so do nothing
+; Cursor Right
+;
+Key_HT:			BIT	4, B			; Are we in COPY mode?
+			JR	Z, 1F		
+Key_HT_1:		INC 	E 			; Yes, so just move the cursor
+			LD	(CURSOR_X), DE
+			JP	Edit_Line_Loop
+1:			LD	A, (HL)			
+			CP	0x0D			; Are we at the end of line? (marked with a CR)
+			JP	Z, Edit_Line_Loop	; Yes, so do nothing
 			INC	L			; Advance the cursor
-			LD	A, 0x09			; Echo character back to terminal
-			JR	Key_Out			; Loop
+			JR	Key_Out			; Echo character back to terminal			
 
-Key_DEL:		INC	L			; Check for input ptr at beginning of line
+; Cursor Down 
+;
+Key_LF:			BIT	4, B			; Are we in COPY mode?
+			JR	Z, 1F			
+			INC 	D 			; Yes, so just move the cursor
+			LD	(CURSOR_X), DE
+			JP	Edit_Line_Loop
+1:			LD	E, 0			
+			CALL	Get_Length 		; Get length of line in B from start of buffer (E=0)
+			LD	A, L 			
+			ADD	A, 32			; Down one line
+			CP	B 			; Check with line length
+			JR 	C, 2F			
+			JP	NZ, Edit_Line_Loop
+2:			LD 	L, A 
+			JR	Key_Out			; Echo character back to terminal
+
+; Cursor Up
+;
+Key_VT:			BIT	4, B			; Are we in COPY mode?
+			JR	Z, 1F			
+			DEC 	D 			; Yes, so just move the cursor
+			LD	(CURSOR_X), DE
+			JP	Edit_Line_Loop
+1:			LD	A, L			; Get the line pointer
+			SUB	32 			; Up one line
+			JP	C, Edit_Line_Loop	; If it takes us past the beginning of the line then do nothing
+			LD	L, A 			; Store
+			JR	Key_Out			; Echo character back to terminal
+
+; Delete
+;
+Key_DEL:		BIT	4, B			; Are we in COPY mode?
+			JR	NZ, 2F			; Yes, so do copy
+			INC	L			; Check for input ptr at beginning of line
 			DEC	L 
-			JR	Z, Edit_Line_Loop
+			JR	Z, 1F
 			CALL	Delete
 			DEC	L
 			CALL	Update
 			LD	A, ' '
 			CALL	OSWRCH
 			CALL 	Move_Cursor_L
-			JR	Edit_Line_Loop
+1:			JP	Edit_Line_Loop
+2:			PUSH	DE
+			PUSH	HL
+			EX	DE, HL 
+			CALL	NEXT_GRAPHICS.Get_Char
+			POP	HL
+			POP	DE
+			JR	NC, 1B
+			PUSH	DE
+			CALL	Insert			; Insert the character into the buffer
+			LD	(HL), C			; Store the character
+			CALL	Update			; Update characters from cursor position
+			INC	L
+			POP	DE
+			JR	Key_HT_1
 
 ; Get line length
 ;  E: Start pointer value in buffer
