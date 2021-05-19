@@ -2,10 +2,11 @@
 ; Title:	BBC Basic for Spectrum Next - Miscellaneous helper functions
 ; Author:	Dean Belfield
 ; Created:	10/05/2021
-; Last Updated:	15/05/2021
+; Last Updated:	16/05/2021
 ;
 ; Modinfo:
 ; 15/05/2021:	Changed ASC_TO_HEX to ASC_TO_NUMBER; now parses decimal or hex
+; 16/05/2021:	Added SWITCH_A
 
 ; Read a number and convert to binary
 ; If prefixed with &, will read as hex, otherwise decimal
@@ -88,3 +89,17 @@ BCD_TO_ASC:		LD	C, A 		; Store A
 			LD	(HL), A 
 			INC	HL 
 			RET 
+
+
+; Switch on A - lookup table immediately after call
+;  A: Index into lookup table
+;
+SWITCH_A:		EX	(SP), HL		; Swap HL with the contents of the top of the stack
+			ADD	A, A			; Multiply A by two
+			ADD	HL, A 			; Index into the lookup table; this should immediately
+			LD	A, (HL)			; follow the call. Fetch an address from the
+			INC	HL 			; table.
+			LD	H, (HL)
+			LD	L, A
+			EX	(SP), HL		; Swap this new address back, restores HL
+			RET				; Return program control to this new address
