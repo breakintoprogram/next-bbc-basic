@@ -3,11 +3,12 @@
 ;		Spectrum Next Initialisation
 ; Author:	Dean Belfield
 ; Created:	04/05/2021
-; Last Updated:	15/05/2021
+; Last Updated:	17/05/2021
 ;
 ; Modinfo:
 ; 13/05/2021:	Added BUILD_VERSION
 ; 15/05/2021:	Updates for MODE command
+; 17/05/2021:	Border colour now set in CLS
 
 			MODULE	NEXT_INIT
 
@@ -40,9 +41,7 @@
 			NEXTREG 0x43, %00000000		; Select ULA, first palette, not ULANext
 
 			CALL 	Initialise_Interrupt
-			LD	A, 0			; Set the border colour
-			CALL	NEXT_GRAPHICS.Set_Border
-			LD	A, 0			; Set the video mode
+			XOR	A			; Set the video mode
 			CALL	NEXT_GRAPHICS.Set_Video_Mode
 			CALL    TELL
 			DEFM	"Spectrum Next Version ", BUILD_VERSION, "\n\r"
