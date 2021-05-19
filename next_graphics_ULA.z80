@@ -3,11 +3,12 @@
 ;		Spectrum Next ULA Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	13/05/2021
-; Last Updated:	17/05/2021
+; Last Updated:	19/05/2021
 ;
 ; Modinfo:
 ; 15/05/2021:	Plot now pulls PLOT_MODE and PLOT_COLOUR direct from RAM; Updates for MODE command
 ; 17/05/2021:	Tweaks for COLOUR, GCOL
+; 19/05/2021:	Fixed bug in Get_Char
 
 			MODULE	NEXT_GRAPHICS_ULA
 
@@ -127,27 +128,36 @@ Print_Char:		CALL 	Get_Char_Address
 ;  H: Y Coordinate
 ; Returns:
 ;  A: ASCII character, or 0xFF if no match
-;  F: Z if character match, otherwise NZ
+;  F: C if character match, otherwise NC
 ;
 Get_Char:		CALL	Get_Char_Address	; Get character address in HL
 			LD	DE, 0x3D00		; Start of system font
-			LD	B, 8			; Row counter
 			LD	C, 32 			; ASCII code
+0:			LD	B, 8			; Row counter
+			PUSH	DE 			; Push the character address
+			PUSH	HL			; And the screen address
 1:			LD	A, (DE)			; Get first row from charset
 			CP	(HL)			; Compare it with screen
 			JR	NZ, 2F			; If there is a mismatch, skip..
 			INC	H			; Next row on screen
 			INC 	DE			; Next row of system font
 			DJNZ	1B
+			POP	HL			; Pop the screen address
+			POP	DE			; Pop the character address
 			LD	A, C			; At this point we have a match
+			SCF
 			RET				; Return the character, Z flag set
-2:			INC	C			; Increment character #
+2:			POP	HL			; Pop the screen address
+			POP	DE			; Pop the character address
+			INC	C			; Increment character #
 			BIT	7, C 			; If we've reached character 128
-			LD	A, 0xFF			; Set A to 0xFF		
-			RET 	NZ 			; Then ret wih Z flag not set
+			JR 	NZ, 3F			; Then ret wih Z flag not set
 			LD	A, 8 
 			ADD	DE, A 			; Advance 8 bytes to next character in system font
-			JR	1B			; Lather, rinse and repeat
+			JR	0B			; Lather, rinse and repeat
+3:			XOR	A 			; Clear carry flag and
+			INC	A			; Set A to 0xFF
+			RET 
 
 ; Get screen address
 ;  H: Y character position
@@ -294,7 +304,7 @@ Set_Attr:		LD 	A, B
 			DEFW	Set_Attr_All
 			DEFW	Set_Attr_Ink
 			DEFW	Set_Attr_Paper
-			DEFW	Set_Border
+			DEFW	NEXT_GRAPHICS.Set_Border
 			DEFW	Set_Attr_Bright
 			DEFW	Set_Attr_Flash
 ;
