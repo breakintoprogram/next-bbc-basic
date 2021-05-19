@@ -3,10 +3,11 @@
 ;		Useful macros
 ; Author:	Dean Belfield
 ; Created:	08/05/2021
-; Last Updated:	13/05/2021
+; Last Updated:	18/05/2021
 ;
 ; Modinfo:
 ; 13/05/2021:	Added OPCODE macro for assembler (in exec.z80)
+; 18/05/2021:	Added CALL_IX and CALL_IY
 
 		MACRO 	Z80PORT port, value
 		LD	A, value
@@ -21,6 +22,18 @@
 		MACRO	CALL_HL
 		PUSH	.S1 
 		JP	(HL)
+.S1:		;
+		ENDM
+
+		MACRO	CALL_IX
+		PUSH	.S1
+		JP	(IX)
+.S1:		;
+		ENDM
+
+		MACRO	CALL_IY
+		PUSH	.S1
+		JP	(IY)
 .S1:		;
 		ENDM
 
