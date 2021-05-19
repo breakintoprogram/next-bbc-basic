@@ -55,7 +55,7 @@
 ;
 @VDU_BUFFER:		EQU	BUFFER		; Storage for VDU commands
 
-@FLAGS:			DEFS	1		; Flags: B7=ESC PRESSED, B6=ESC DISABLED, B5:Capslock
+@FLAGS:			DEFS	1		; Flags: B7=ESC PRESSED, B6=ESC DISABLED, B5=CAPS LOCK, B4=COPY PRESSED
 @KEYCODE:		DEFB	0		; Keycode updated by keyscan
 @TIME:			DEFW	0, 0	
 @VIDEO_MODE:		DEFB	0		; Video mode
