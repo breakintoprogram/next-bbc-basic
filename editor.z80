@@ -1,0 +1,168 @@
+;
+; Title:	BBC Basic for Spectrum Next - Editor
+; Author:	Dean Belfield
+; Created:	18/05/2021
+; Last Updated:	19/05/2021
+;
+; Modinfo:
+
+			MODULE NEXT_EDITOR
+
+; Read/edit a complete line, terminated by CR.
+;  HL: Addresses destination buffer. Must be on a page boundary
+; Returns:
+; Buffer filled, terminated by CR.
+;   A: 0
+; Destroys: A,BC,DE,HL,IX,F
+;
+Edit_Line:		LD	(HL), 0x0D		; Initialise buffer
+			LD	IX, (CHARPOS_X)		; Current charpos
+			LD	(CURSOR_X), IX		; Update cursor position
+Edit_Line_Loop:		LD	A, 1
+			CALL	Display_Cursor
+2:			CALL	OSRDCH
+			OR	A 
+			JR	Z, 2B
+			LD	C, A 			; Take a copy of the character
+			XOR	A
+			CALL	Display_Cursor
+;
+			LD	A, C			; Check keyboard edit commands
+			CP	0x08			; BS: Back one character
+			JR	Z, Key_BS
+			CP	0x09			; HT: Advance one character
+			JR	Z, Key_HT
+			CP	0x0D			; CR: Enter
+			JR	Z, Key_CR		
+			CP	0x7F			; Delete
+			JR	Z, Key_DEL
+
+			LD	E, 0			; Get length of current line
+			CALL	Get_Length
+			LD	A, B 
+			CP	255			
+			JR	NC, Edit_Line_Loop	; Skip if line limit (255) exceeded
+;
+			CALL	Insert			; Insert the character into the buffer
+			LD	A, C 			; Get the character code back
+			LD	(HL), A			; Store the character
+			CALL	Update			; Update characters from cursor position
+			INC	L
+			CALL	Move_Cursor_L
+			JR	Edit_Line_Loop
+
+Display_Cursor:		PUSH	HL
+			LD	HL,(CURSOR_X)
+			CALL 	NEXT_GRAPHICS.Display_Cursor
+			POP	HL 
+			RET
+
+Key_CR:			CALL	CRLF
+			XOR	A			; Return A = 0
+			RET  
+
+Key_BS:			INC	L 			; Check for cursor at beginning of line
+			DEC	L 
+			JR	Z, Edit_Line_Loop	; If we are, then do nothing
+			DEC	L			; Move the cursor back
+			LD	A, 0x08
+Key_Out:		CALL	OSWRCH			; Echo character back to terminal
+			CALL	Move_Cursor_L
+			JR	Edit_Line_Loop		; Loop
+
+Key_HT:			LD	A, (HL)			; Are we at the end of line?
+			CP	0x0D			; Marked with a CR
+			JR	Z, Edit_Line_Loop	; Yes, so do nothing
+			INC	L			; Advance the cursor
+			LD	A, 0x09			; Echo character back to terminal
+			JR	Key_Out			; Loop
+
+Key_DEL:		INC	L			; Check for input ptr at beginning of line
+			DEC	L 
+			JR	Z, Edit_Line_Loop
+			CALL	Delete
+			DEC	L
+			CALL	Update
+			LD	A, ' '
+			CALL	OSWRCH
+			CALL 	Move_Cursor_L
+			JR	Edit_Line_Loop
+
+; Get line length
+;  E: Start pointer value in buffer
+; Returns
+;  B: Number of characters, excluding CR
+;
+Get_Length_From_Cursor:	LD	E, L
+Get_Length:		LD	B, 0
+			LD	D, H
+1:			LD	A, (DE)
+			CP	0x0D
+			RET	Z 
+			INC	B 
+			INC	E
+			JR	1B
+
+
+; Move cursor
+;  E: Cursor position
+; Returns:
+; BC: Cursor position
+;
+Move_Cursor_L:		LD	E, L
+Move_Cursor_E:		LD	D, 0
+			LD	A, IXL 			; Add existing cursor X offset
+			ADD	DE, A 			; Number of chars to move cursor
+			LD	A, E 			; Mask out X position
+			AND 	31
+			LD	C, A			; And store in C
+			LD	B, 5			; Divide DE by 32
+			BSRA	DE, B
+			LD	A, E
+			ADD	A, IXH 			; Add to existing cursor Y offset
+			LD	B, A
+			LD	(CURSOR_X), BC		; Store new cursor position
+			RET 
+
+; Update from cursor position
+;  L: Cursor position
+;
+Update:			CALL	Move_Cursor_L
+			LD	(CHARPOS_X), BC
+			LD	D, H 
+			LD	E, L
+1:			LD	A, (DE)
+			CP	0x0D
+			RET	Z
+			CALL	OSWRCH
+			INC	E
+			JR	1B
+
+; Insert character
+;  C: Character to insert
+;  L: Cursor position
+;
+Insert:			CALL	Get_Length_From_Cursor	
+			INC	B			; Need to loop at least once
+1:			LD	A, (DE)
+			INC	E
+			LD	(DE), A 
+			DEC	E 
+			DEC	E
+			DJNZ	1B
+			RET
+
+; Delete character
+;  L: Cursor position
+Delete:			CALL	Get_Length_From_Cursor
+			INC	B
+			LD	E, L
+1:			LD	A, (DE)
+			DEC	E 
+			LD	(DE), A
+			INC	E 
+			INC 	E
+			DJNZ	1B
+			RET
+
+			ENDMODULE
