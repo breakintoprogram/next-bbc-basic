@@ -3,14 +3,20 @@
 ;		Patch file for Spectrum Next
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	15/05/2021
+; Last Updated:	18/05/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Fixed plot mode and bug in COMDS table
 ; 10/05/2021:	Added RTC TIME$ and *TIME, moved some code into misc.z80, and changes due to VDU support
 ; 15/05/2021:	References to ASC_TO_HEX changed to ASC_TO_NUMBER in STAR commands; Updates for MODE command
+; 17/05/2021:	Fixed bug in OSLINE; now returns 0; Added cursor to OSLINE; Added *EDIT; Tweaks for COLOUR, GCOL
+; 18/05/2021:	Moved editor code into editor.z80
 
 			MODULE PATCH
+
+@GETIMS:		EQU	NEXT_RTC.GET_DATE_STRING	; Get the time string from the real-time clock module
+@OSWRCH:		EQU	NEXT_IO.Print_Char		; Write a character out
+@OSLINE			EQU 	NEXT_EDITOR.Edit_Line		; Line editor
 
 ; MODE n: Set video mode
 ;
@@ -42,10 +48,6 @@
 @GETIME:		LD	DE, (TIME + 2)
  	  		LD	HL, (TIME + 0)
 			RET
-
-; Get the time string from the real-time clock module
-;
-@GETIMS:		JP	NEXT_RTC.GET_DATE_STRING
 
 ; PUTCSR: move to cursor to x=DE, y=HL
 ;
@@ -82,10 +84,7 @@
 ; PROMPT: output the input prompt
 ;
 @PROMPT: 		LD	A,'>'
-
-; OSWRCH: write a character out
-;
-@OSWRCH:		JP	NEXT_IO.Print_Char
+			JP	OSWRCH
 
 ;OSKEY - Read key with time-limit, test for ESCape.
 ;Main function is carried out in user patch.
@@ -134,41 +133,9 @@ ESCTEST:		LD	A, (KEYCODE)
 ;
 @OSINIT: 		XOR	A
 			LD	(@FLAGS), A		; Clear flags
-         		LD 	DE, Stack_Top		; DE = HIMEM
-         		LD 	E, A			; PAGE BOUNDARY
+         		LD 	DE, 0xFD00		; DE = HIMEM (currently under IM2 table)
          		LD 	HL, @USER
          		RET	
-
-;OSLINE - Read/edit a complete line, terminated by CR.
-;   Inputs: HL addresses destination buffer.
-;           (L=0)
-;  Outputs: Buffer filled, terminated by CR.
-;           A=0.
-; Destroys: A,B,C,D,E,H,L,F
-;
-@OSLINE:		CALL	OSRDCH
-			OR	A 
-			JR	Z,OSLINE
-			CP	0x0D		; CR
-			JR	Z,KEYCR		
-			CP	0x7F		; Backspace
-			JR	Z,KEYBS
-			LD	(HL),A		; Save the character in the buffer
-			INC	HL
-			CALL	OSWRCH		; Echo character back to terminal
-			JR	OSLINE		; Loop
-
-KEYCR:			LD	(HL),A		; Write final CR
-			CALL	@CRLF		; Print CR
-			AND	A
-			RET 
-
-KEYBS:			INC	L		; Check for beginning of line
-			DEC	L 
-			JR	Z,OSLINE
-			CALL	OSWRCH
-			DEC	L
-			JR	OSLINE
 
 ;OSCLI - Process an "operating system" command
 ;
@@ -233,6 +200,7 @@ HUH:    		LD      A,254
 ; It looks like these need to be in alphabetical order
 ;
 COMDS:  		DC	'CAT':		DEFW STAR_DOT		; Catalogue SD Card
+			DC	'EDIT':		DEFW STAR_EDIT		; Pull a line down to edit
 			DC	'FX':		DEFW STAR_FX		; FX commands
 			DC	'MEMDUMP': 	DEFW STAR_MEMDUMP	; Memory hex dump
 			DC	'TEST': 	DEFW STAR_TEST		; Test code call for debugging new functions
@@ -244,12 +212,15 @@ COMDS:  		DC	'CAT':		DEFW STAR_DOT		; Catalogue SD Card
 ;
 STAR_DOT:		RET 
 
-; OSCLI TURBO n
-; Set CPU Speed: 0 = 3.5Mhz, 1 = 7Mhz, 2 = 14Mhz, 3 = 28Mhz
+; OSCLI - *EDIT n
 ;
-STAR_TURBO:		CALL	ASC_TO_NUMBER
-			LD	A, E 
-			NEXTREG	0x07, A 
+STAR_EDIT:		CALL	ASC_TO_NUMBER	; Get line number
+			LD	L, E 
+			LD	H, D 
+			PUSH	DE
+			CALL	FINDL
+			POP	DE
+			RET	NZ
 			RET
 
 ; OSCLI FX n
@@ -275,7 +246,16 @@ STAR_MEMDUMP		CALL	ASC_TO_NUMBER	; Get start address
 ; OSCLI TEST
 ; Stick code to test code here
 ;
-STAR_TEST:		RET
+STAR_TEST:		CALL	ASC_TO_NUMBER
+			INC	HL		
+			PUSH	DE
+			CALL	ASC_TO_NUMBER
+			LD	H, E 		; D: Y
+			POP	DE
+			LD	L, E 		; E: X
+			CALL	NEXT_IO.Get_Charpos_1
+			CALL	NEXT_GRAPHICS.Get_Char
+			RET
 
 ; OSCLI TIME
 ; Output current time
@@ -289,6 +269,14 @@ STAR_TIME:		CALL	GETIMS
 			LD	(HL), 0
 			LD	HL, ACCS
 			JP	MAIN.TEXT 	
+
+; OSCLI TURBO n
+; Set CPU Speed: 0 = 3.5Mhz, 1 = 7Mhz, 2 = 14Mhz, 3 = 28Mhz
+;
+STAR_TURBO:		CALL	ASC_TO_NUMBER
+			LD	A, E 
+			NEXTREG	0x07, A 
+			RET
 
 ; ----------------------------------------------------------------------------
 
@@ -352,27 +340,54 @@ STAR_TIME:		CALL	GETIMS
 			CALL    BRAKET
 			JP      EVAL.COUNT0
 
-; COLOUR 0-7 (Ink)
-; COLOUR 128-135 (Paper)
+; COLOUR col[,type]
+; Set the text colour
+;   col: 0-127 (foreground), 128-255 (backround)
+;  type: 0: BBC spec (default)
+;        1: foreground / ULA ink
+;        2: background / ULA paper
+;        3: border
+;        4: ULA bright
+;        5: ULA flash
 ;
 @COLOUR:		CALL    EXPRI
 			EXX
-			LD	A, L 
-			LD	HL, TEXT_COLOUR
-			CALL	NEXT_GRAPHICS.Set_Colour
-			JP	XEQ
-; GCOL mode, colour
+			PUSH	HL
+			CALL	NXT 
+			CP	','
+			LD	A, 0		; Default type
+			JR	NZ,1F
+			INC	IY		; Skip comma
+			CALL	EXPRI		; Type
+			EXX
+			LD	A, L		;  A: Type
+1:			POP	BC		;  C: Colour
+			LD	B, A		;  B: Type
+			CALL	NEXT_GRAPHICS.Set_Text_Colour
+			JP	XEQ 
+
+; GCOL mode,colour[,type]
+; As COLOUR
 ;
 @GCOL:			CALL	EXPRI		; Get the mode
 			EXX
 			LD	A, L
-			LD	(PLOT_MODE), A 
+			LD	(PLOT_MODE), A 	; Store
 			CALL	COMMA
 			CALL	EXPRI		; Get the colour
 			EXX 
-			LD	A, L
-			LD	HL, PLOT_COLOUR
-			CALL	NEXT_GRAPHICS.Set_Colour
+			PUSH	HL
+			CALL	NXT 
+			CP	','
+			LD	A, 0		; Default type
+			JR	NZ,1F
+			INC	IY		; Skip comma
+			CALL	EXPRI		; Type
+			EXX
+			LD	A, L		;  A: Type
+1:			POP	BC		;  C: Colour
+			LD	B, A		;  B: Type
+			CALL	NEXT_GRAPHICS.Set_Plot_Colour
 			JP	XEQ 
 
 ; PLOT mode,x,y
@@ -444,7 +459,7 @@ STAR_TIME:		CALL	GETIMS
 
 2:			POP	DE 		; Pop (X1,Y1)
 			POP	HL		; Pop (X2,Y2)
-			CALL	NEXT_GRAPHICS.Draw_Line
+			CALL	NEXT_GRAPHICS.Draw
 			JP	XEQ 
 
 ; POINT(x,y)
