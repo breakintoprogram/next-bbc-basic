@@ -2,17 +2,19 @@
 ; Title:	BBC Basic for Spectrum Next - Main build file
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	13/05/2021
+; Last Updated:	18/05/2021
 ;
 ; Modinfo:
 ; 10/05/2021:	Moved Next specific RAM declarations into ram.z80 and tidied up a bit
 ; 13/05/2021:	Added BUILD_VERSION define
+; 16/05/2021:	USER now aligned to page boundary - fixes bug in OLD
+; 18/05/2021:	Moved editor functions to editor.z80
 
 			SLDOPT COMMENT WPMEM, LOGPOINT, ASSERTION
 			
 			DEVICE ZXSPECTRUMNEXT		; sjasmplus directive for SAVESNA at end
 
-			DEFINE BUILD_VERSION "0.02"	; Build version
+			DEFINE BUILD_VERSION "0.04"	; Build version
 ;
 ; Assembly flags
 ;
@@ -59,9 +61,14 @@ Code_Start		EQU	0x6000
 			include "fpp.z80"
 			include "sorry.z80"
 			include "patch.z80"
+			include "editor.z80"
 			include "ram.z80"
 
-@USER:  		SAVENEX OPEN "Z80/BBC Basic/build.nex", Code_Start, Stack_Top
+			ALIGN 	256			; USER needs to be alignd to a page boundary
+
+@USER:			incbin "examples/animal.bbc"	; BASIC program to load into memory
+
+	 		SAVENEX OPEN "Z80/BBC Basic/build.nex", Code_Start, Stack_Top
 			SAVENEX CORE 3, 0, 0
 			SAVENEX CFG  7, 0, 0
 			SAVENEX BAR  1, 0xE0, 50, 25
