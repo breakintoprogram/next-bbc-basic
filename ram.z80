@@ -6,13 +6,15 @@
 ; Author:	(C) Copyright  R.T.Russell 31-12-1983
 ; Modified By:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	10/05/2021
+; Last Updated:	19/05/2021
 ;
 ; Modinfo:
 ; 02/05/2021:	Modified by Dean Belfield to assemble with SJASMPLUS
 ; 10/05/2021:	Moved Next RAM variables from build.z80 into here
 ; 15/05/2021:	Added PLOTPRE_X and PLOTPRE_Y; VDU_BUFFER now shared with BUFFER
-;   
+; 17/05/2021:	TEXT_COLOUR now split into TEXT_FOREGROUND and TEXT_BACKGROUND; Added BORDER_COLOUR
+; 19/05/2021:	Added CURSOR_X and CURSOR_Y
+
 			MODULE RAM
 
 			ALIGN 	256		; Align to page boundary
@@ -51,11 +53,17 @@
 ;
 ; Extra Next-implementation specific system variables
 ;
+@VDU_BUFFER:		EQU	BUFFER		; Storage for VDU commands
+
 @FLAGS:			DEFS	1		; Flags: B7=ESC PRESSED, B6=ESC DISABLED, B5:Capslock
 @KEYCODE:		DEFB	0		; Keycode updated by keyscan
 @TIME:			DEFW	0, 0	
 @VIDEO_MODE:		DEFB	0		; Video mode
-@TEXT_COLOUR:		DEFB	%01000111	; Text colour as set by COLOUR
+@TEXT_FOREGROUND:	DEFB	%01000111	; Text foreground colour (Layer 2) or attribute (ULA)
+@TEXT_BACKGROUND:	DEFB	0		; Text background (Layer 2 only)
+@BORDER_COLOUR:		DEFB	0
+@CURSOR_X:		DEFB	0		; Edit cursor position on screen
+@CURSOR_Y:		DEFB	0
 @CHARPOS_X:		DEFB	0		; Current character position on screen
 @CHARPOS_Y:		DEFB	0
 @PLOTPRE_X:		DEFW	0 		; Previous plot position
@@ -66,7 +74,6 @@
 @VDU_STATE:		DEFB	0		; VDU state
 @VDU_PTR:		DEFB	0		; Pointer into VDU buffer
 @VDU_COUNT:		DEFB	0		; VDU count of characters left to read
-@VDU_BUFFER:		EQU	BUFFER		; Storage for VDU commands
 @PLOT_MODE:		DEFB	0		; Plot mode as set by GCOL
 @PLOT_COLOUR:		DEFB	%01000111	; Plot colour as set by GCOL
 @RTC_SIG:		DEFW 	0		; Storage for last-read RTC data				
