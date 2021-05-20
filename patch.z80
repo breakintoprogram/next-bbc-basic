@@ -3,7 +3,7 @@
 ;		Patch file for Spectrum Next
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	18/05/2021
+; Last Updated:	20/05/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Fixed plot mode and bug in COMDS table
@@ -11,6 +11,7 @@
 ; 15/05/2021:	References to ASC_TO_HEX changed to ASC_TO_NUMBER in STAR commands; Updates for MODE command
 ; 17/05/2021:	Fixed bug in OSLINE; now returns 0; Added cursor to OSLINE; Added *EDIT; Tweaks for COLOUR, GCOL
 ; 18/05/2021:	Moved editor code into editor.z80
+; 20/05/2021:	Fixed bugs in MOVE and PLOT
 
 			MODULE PATCH
 
@@ -244,18 +245,9 @@ STAR_MEMDUMP		CALL	ASC_TO_NUMBER	; Get start address
 			JP	NEXT_DEBUG.Memory_Dump
 
 ; OSCLI TEST
-; Stick code to test code here
+; Stick code to test here
 ;
-STAR_TEST:		CALL	ASC_TO_NUMBER
-			INC	HL		
-			PUSH	DE
-			CALL	ASC_TO_NUMBER
-			LD	H, E 		; D: Y
-			POP	DE
-			LD	L, E 		; E: X
-			CALL	NEXT_IO.Get_Charpos_1
-			CALL	NEXT_GRAPHICS.Get_Char
-			RET
+STAR_TEST:		RET
 
 ; OSCLI TIME
 ; Output current time
@@ -394,32 +386,40 @@ STAR_TURBO:		CALL	ASC_TO_NUMBER
 ;
 @PLOT:			CALL	EXPRI		; Get the plot type (line, plot, etc)
 			EXX
+			PUSH	HL	
+			CALL	COMMA 
+			CALL	EXPRI		; Get X
+			EXX 
 			PUSH	HL		
 			CALL	COMMA 
-			CALL	MOVE_1		; Get X and Y parameters
-			POP	HL		; Plot type in L
-			LD	A, L 		; Plot type in A
-			LD	DE, (PLOTPOS_X)
-			LD	HL, (PLOTPOS_Y)
+			CALL	EXPRI		; Get Y
+			EXX 
+			POP	DE 
+			POP	BC		; Plot type in C
+			LD	A, C 		; Plot type in A
+			PUSH	HL		; Y
+			PUSH	DE		; X
 			CALL	NEXT_GRAPHICS.Plot
+			POP	DE 		
+			POP	HL	
+@PLOT_1:		LD	BC, (PLOTPOS_X)	; Store the previous plot points
+			LD 	(PLOTPRE_X), BC 
+			LD	BC, (PLOTPOS_Y)
+			LD	(PLOTPRE_Y), BC
+			LD	(PLOTPOS_X), DE	; And store the latest plot point
+			LD	(PLOTPOS_Y), HL 
 1:			JP	XEQ
 
 ; MOVE x, y
 ;
-@MOVE:			CALL	MOVE_1		; Get X and Y parameters
-			JP	XEQ
-@MOVE_1:		LD	HL, (PLOTPOS_X)	; Store the previous plot points
-			LD 	(PLOTPRE_X), HL 
-			LD	HL, (PLOTPOS_Y)
-			LD	(PLOTPRE_Y), HL
-			CALL	EXPRI		; Get X
+@MOVE:			CALL	EXPRI		; Get X
 			EXX 
-			LD	(PLOTPOS_X), HL	; And store
+			PUSH	HL
 			CALL	COMMA 
 			CALL	EXPRI		; Get Y
 			EXX 
-			LD	(PLOTPOS_Y), HL ; And store
-			RET 
+			POP	DE		; X
+			JR	PLOT_1
 
 ; DRAW x, y
 ;
@@ -433,18 +433,18 @@ STAR_TURBO:		CALL	ASC_TO_NUMBER
 			POP	HL 		; L: X2
 			LD	H, A		; H: Y2
 			PUSH	HL 		; Stack that coordinate pair
-
+;
 			CALL    NXT		; If no third parameter passed
 			CP	','		; Can we find a comma
 			JR 	Z, 1F		; Yes, so fetch two more parameters
-
+;
 			LD	A, (PLOTPOS_X)	; No, so get defaults from PLOTPOS
 			LD	L, A 		; L: X1
 			LD	A, (PLOTPOS_Y)
 			LD	H, A 		; H: Y1 
 			PUSH	HL		; Stackit
 			JR	2F		; Jump to plot
-
+;
 1:			INC	IY		; Skip the comma
 			CALL	EXPRI		; Get Y1
 			EXX 
@@ -456,11 +456,17 @@ STAR_TURBO:		CALL	ASC_TO_NUMBER
 			POP	HL 		; L: X1
 			LD	H, A		; H: Y1
 			PUSH	HL 		; Stack that coordinate pair
-
+;
 2:			POP	DE 		; Pop (X1,Y1)
 			POP	HL		; Pop (X2,Y2)
+			PUSH	HL
 			CALL	NEXT_GRAPHICS.Draw
-			JP	XEQ 
+			POP	HL
+			LD	E, L 		; XL
+			LD	L, D		; YL
+			LD	D, 0		; Clear top bytes
+			LD	H, D		
+			JP	PLOT_1
 
 ; POINT(x,y)
 ;
