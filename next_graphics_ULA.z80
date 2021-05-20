@@ -3,12 +3,13 @@
 ;		Spectrum Next ULA Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	13/05/2021
-; Last Updated:	19/05/2021
+; Last Updated:	20/05/2021
 ;
 ; Modinfo:
 ; 15/05/2021:	Plot now pulls PLOT_MODE and PLOT_COLOUR direct from RAM; Updates for MODE command
 ; 17/05/2021:	Tweaks for COLOUR, GCOL
 ; 19/05/2021:	Fixed bug in Get_Char
+; 20/05/2021:	Added Draw_Horz_Line; Fixed bug in Set_Attr
 
 			MODULE	NEXT_GRAPHICS_ULA
 
@@ -246,7 +247,6 @@ Plot_XOR:		LD	A, (HL)
 
 ; Write colour value out to ULA attribute map
 ; HL: Address in ULA pixel map
-;  B: Colour to write out
 ;			
 Plot_Attribute:		LD	A, H 			; Get the attribute address from the screen address
 			RRA
@@ -258,6 +258,83 @@ Plot_Attribute:		LD	A, H 			; Get the attribute address from the screen address
 			LD	A, (PLOT_COLOUR)
 			LD	(HL), A			; Write the colour out
 			RET
+
+; Draw Horizontal Line routine
+;  D: Y coordinate
+;  E: X pixel position 1
+;  B: X pixel position 2
+;
+Draw_Horz_Line:		LD	A, B			; Check if E (X1) > B (X2)
+			CP	E 
+			JR	NC,0F
+			LD 	B, E			; Swap B and D
+			LD 	E, A		
+0:			PIXELAD				; HL: Screen Address
+			LD	D, B 			; D: X2
+			LD 	A, E			; Calculate index into table for X1
+			AND	7
+			LD 	BC, Plot_Line_LHS	; Get pixel data table
+			ADD	BC, A
+			LD 	A, (BC)			; 
+			LD	E, A			; E: X1 pixel mask		
+; HL: Screen address
+;  E: X1 pixel data
+			LD	A, D			; Calculate index into table for X2
+			AND	7
+			LD 	BC, Plot_Line_RHS
+			ADD	BC, A 
+			LD	A, D 			; Now the byte address for D
+			SRL	A 
+			SRL	A 
+			SRL	A 
+			AND	31 
+			LD	D, A 
+			LD	A, L
+			AND	%11100000
+			OR	D			
+			LD	D, A			; D: Screen address (low byte) for X2
+			LD	A, (BC)	
+			LD	C, A			; C: X2 pixel mask
+			LD	A, D 			; Get number of bytes to write
+			SUB	L 
+			JR	NZ, 1F 			; If not zero, we're writing more than 1 byte
+			LD	A, E			
+			XOR	C 			; Otherwise, combine the pixel masks
+			CPL 
+			OR	(HL)			; OR with screen contents
+			LD	(HL), A
+			JP	Plot_Attribute		; Write out the attribute byte
+;
+1:			LD	B, A			; Loop counter
+			LD	A, (HL)			; Write out the pixel data
+			OR	E			; OR first byte with screen contents
+			LD	(HL), A			
+			LD	D, B			; Backup of loop counter
+			LD	E, L 			; Backup of low byte
+			INC	L
+			DEC	B 
+			JR	Z, 3F
+			LD	A, 255
+2:			LD	(HL), A			; Write out the main block
+			INC	L
+			DJNZ	2B
+3:			LD	A, (HL)			; Write out the last byte
+			OR	C			; OR last byte with screen contents
+			LD	(HL), A 		
+;
+			LD	L, E			; Restore backup of low byte
+			LD	B, D			; And loop counter
+			CALL	Plot_Attribute		; Write the first attribute byte
+			INC	B
+4:			LD	(HL), A 		; Write out subsequent bytes
+			INC	L
+			DJNZ	4B
+			RET 
+;
+; End-point masks for the horizontal lines
+;
+Plot_Line_LHS:		DB %11111111,%01111111,%00111111,%00011111,%00001111,%00000111,%00000011,%00000001
+Plot_Line_RHS:		DB %10000000,%11000000,%11100000,%11110000,%11111000,%11111100,%11111110,%11111111
 
 ; Calculate Speccy colour for COLOUR and GCOL
 ;  C: New Colour
@@ -309,7 +386,7 @@ Set_Attr:		LD 	A, B
 			DEFW	Set_Attr_Flash
 ;
 Set_Attr_Paper:		SET	7, C 
-			JR	Set_Attr
+			JR	Set_Attr_All
 ;
 Set_Attr_Ink:		RES	7, C
 Set_Attr_All:		LD	A, (HL)
