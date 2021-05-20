@@ -3,7 +3,7 @@
 ;		Spectrum Next I/O Routines
 ; Author:	Dean Belfield
 ; Created:	03/05/2021
-; Last Updated:	19/05/2021
+; Last Updated:	20/05/2021
 ;
 ; Modinfo:
 ; 10/05/2021:	Started implementing VDU engine
@@ -14,6 +14,7 @@
 ; 16/05/2021:	VDU system now uses SWITCH_A
 ; 17/05/2021:	Removed PUSH/POP wrapper around Read_Keyboard and added HT and BS codes; Tweaks for COLOUR, GCOL
 ; 19/05/2021:	Added LF and VT on Shift 6 and 7 in Read_Keyboard and COPY on Shift 1
+; 20/05/2021:	Print_Char now preserves IX
 
 			MODULE	NEXT_IO
 
@@ -118,17 +119,10 @@ Get_Charpos_1:		PUSH	AF
 ; Print a character at the current charpos
 ; Destroys nothing
 ;
-Print_Char:		PUSH 	AF			; Stack all the registers
-			PUSH	BC 			
-			PUSH	DE
-			PUSH	HL
+Print_Char:		PUSH 	AF, BC, DE, HL, IX	; Stack all the registers
 			CALL	1F			; Call the print routine
-			POP	HL 
-			POP	DE 
-			POP	BC
-			POP	AF
+			POP	IX, HL, DE, BC, AF
 			RET 
-
 1:			LD	C, A			; Temporarily store the character
 			LD	A, (VDU_STATE)		; What's the current VDU state?
 			OR	A 			; If not zero...
