@@ -3,7 +3,7 @@
 ;		Spectrum Next Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	06/05/2021
-; Last Updated:	18/05/2021
+; Last Updated:	20/05/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Added Plot modes for Plot_ULA.
@@ -14,6 +14,7 @@
 ; 16/05/2021:	Now uses SWITCH_A to select graphics commands by mode
 ; 17/05/2021:	Added Get_Char and Display_Cursor; Tweaks for COLOUR, GCOL
 ; 18/05/2021:	Draw_Line now uses a callback to plot points
+; 20/05/2021:	Added Plot_Triangle
 
 			MODULE	NEXT_GRAPHICS 
 
@@ -47,7 +48,7 @@ Set_Video_Mode:		AND	1
 ; Set border colour
 ;  C: Colour
 ;
-@Set_Border:		LD	A, C
+Set_Border:		LD	A, C
 			AND	7
 			LD	(BORDER_COLOUR), A
 			OUT	(254), A 
@@ -146,10 +147,12 @@ Plot:			LD	B, A		; Store the plot type
 			RRA 
 			RRA 
 			CP	8		; If less than 8, it's a line
-			JR	C, Plot_Line 
+			JP	C, Plot_Line 
 			JR	Z, Plot_Point	; If it is 8, then plot a point
+			CP	10	
+			JR	Z, Plot_Triangle
 			CP	18
-			JR	Z, Plot_Circle	; Check for circle
+			JP	Z, Plot_Circle	; Check for circle
 			RET
 ; Plot a point
 ;  E: X
@@ -160,29 +163,124 @@ Plot_Point:		LD	A, (VIDEO_MODE)
 			DEFW 	NEXT_GRAPHICS_ULA.Plot
 			DEFW 	NEXT_GRAPHICS_L2.Plot
 
-; Plot a line
-;  E: X
-;  D: Y
-;
-Plot_Line:		LD	A, (PLOTPRE_X)
-			LD	L, A 
-			LD	A, (PLOTPRE_Y)
-			LD	H, A
-			JR	Draw_Line
-
 ; Plot a circle
 ;  E: X
 ;  D: Y
 ;
 Plot_Circle:		LD	L, D		; Stick the Y coordinate in R
-			LD	A, (PLOTPRE_X)
+			LD	A, (PLOTPOS_X)
 			LD	E, A 
-			LD	A, (PLOTPRE_Y)
+			LD	A, (PLOTPOS_Y)
 			LD	D, A
 			PUSH	IY
-			CALL	Draw_Circle
+			CALL	Primitive_Circle
 			POP	IY 
 			RET 
+
+; Plot a filled triangle
+; First and second points in PLOTPRE and PLOTPOS
+;  E: X
+;  D: Y
+;
+Plot_Triangle:		PUSH	IY
+			LD	B, D 			; Store the third point in BC
+			LD	C, E
+			LD	D, 0			; Start with Line 0
+			CALL	Plot_Triangle_S
+			LD	E, A			; Size
+			EX	DE, HL			; Store it in HL
+			LD	D, 1			; Now Line 1
+			CALL	Plot_Triangle_S
+			LD	E, A
+			CP	L
+			JR	C, 1F
+			EX	DE, HL			; This line is bigger, so swap into HL
+1:			PUSH	DE 			; Push the smaller line on the stack
+			LD	D, 2			; Get the second line
+			CALL	Plot_Triangle_S
+			LD	E, A 			; And size
+			CP	L
+			JR	C, 2F
+			EX	DE, HL			; This line is bigger, so swap into HL
+2:			PUSH	DE 			; Push the smaller line
+			PUSH	HL			; And the new bigger line
+			LD	IY, Plot_Triangle_1	; Draw the biggest line in BUFFER
+			POP	AF 
+			CALL	Plot_Triangle_P
+			PUSH	BC
+			CALL	Primitive_Line
+			POP	BC
+			LD	IY, Plot_Triangle_2	; Draw the two smaller lines direct to screen to the point in BUFFER
+			POP	AF
+			CALL	Plot_Triangle_P
+			PUSH	BC
+			CALL	Primitive_Line
+			POP	BC
+			POP	AF
+			CALL	Plot_Triangle_P
+			CALL	Primitive_Line
+			POP	IY
+			RET 
+;
+Plot_Triangle_1:	LD	H, high ACCS		; Plot a point in the BUFFER
+			LD	L, D
+			LD	(HL), E 
+			RET
+Plot_Triangle_2:	LD	H, high ACCS		; Draw a horizontal line from the specified
+			LD	L, D			; point to the opposite line in BUFFER
+			LD 	B, (HL)
+			LD	A, (VIDEO_MODE)
+			CALL	SWITCH_A
+			DEFW	NEXT_GRAPHICS_ULA.Draw_Horz_Line
+			DEFW	NEXT_GRAPHICS_L2.Draw_Horz_Line
+;			
+Plot_Triangle_P:	OR	A 
+			JR	Z, 2F
+			DEC	A 
+			JR	Z, 3F
+			LD	A, (PLOTPOS_X): LD E, A 
+			LD	A, (PLOTPOS_Y): LD D, A 
+			LD	A, (PLOTPRE_X): LD L, A 
+			LD	A, (PLOTPRE_Y): LD H, A
+			RET 
+2:			LD	A, (PLOTPRE_X): LD E, A 
+			LD	A, (PLOTPRE_Y): LD D, A
+			LD	L, C 
+			LD	H, B
+			RET
+3:			LD	A, (PLOTPOS_X): LD E, A 
+			LD	A, (PLOTPOS_Y): LD D, A 
+			LD	L, C 
+			LD	H, B
+			RET
+;
+Plot_Triangle_S:	LD	A, D
+			OR	A 
+			JR	Z, 2F
+			DEC	A 
+			JR	Z, 4F
+			LD	A, (PLOTPRE_Y): LD E, A
+			LD	A, (PLOTPOS_Y)
+1:			SUB	E
+			RET	NC 
+			NEG
+			RET 
+2:			LD	A, (PLOTPRE_Y): LD E, A
+			LD	A, B
+			JR	1B
+4:			LD	A, (PLOTPOS_Y): LD E, A 
+			LD	A, B
+			JR	1B
+
+; Plot a line
+;  E: X
+;  D: Y
+;
+Plot_Line:		LD	A, (PLOTPOS_X)
+			LD	L, A 
+			LD	A, (PLOTPOS_Y)
+			LD	H, A
+			JR	Draw
 
 ; Draw a line on screen from position 1 to position 2 using Bresenham's Incremental Line algorithm
 ;  D: Y pixel position 1
@@ -196,170 +294,11 @@ Draw:			PUSH	IY			; Need to stack for BASIC
 			DEFW 	Draw_ULA
 			DEFW 	Draw_L2 
 Draw_ULA:		LD	IY, NEXT_GRAPHICS_ULA.Plot
-1:			CALL	Draw_Line
+1:			CALL	Primitive_Line
 			POP	IY
 			RET
 Draw_L2:		LD	IY, NEXT_GRAPHICS_L2.Plot
 			JR	1B
-
-; Draw a line from position 1 to position 2 using Bresenham's Incremental Line algorithm
-; IY: Address of plot routine
-;  D: Y pixel position 1
-;  E: X pixel position 1
-;  H: Y pixel position 2
-;  L: X pixel position 2
-;
-Draw_Line:		LD	A, H			; Check whether we are going to be drawing up
-			CP	D
-			JR	NC, 1F
-			EX	DE, HL 			; Swap (X1,Y1) with (X2, Y2) so we're always drawing down
-1:			LD	A, H			; Calculate the line height in H (Y2-Y1)
-			SUB	D
-			LD 	H, A		
-			LD	A, L			; Calculate the line width in L (X2-X1)
-			SUB 	E
-			LD	IXL, +1			; X direction rightwards
-			JR 	NC, 2F			; If carry not set (positiv result) then we are drawing from left to right
-			NEG 				; Negate with width
-			LD	IXL, -1 		; Switch X direction leftwards
-2:			LD	L, A
-;
-; We've got the basic information at this point
-;
-			LD	L, A			; L: XL
-			OR	H			; Check if XL and YL are 0
-			JR	Z, Draw_Line_P		; There is no line, so just plot a single point
-;
-; At this point, the registers are
-;
-;   H: YL (Height)
-;   L: XL (Width)
-;   E: X
-;   D: Y
-; IXL: X direction
-;
-Draw_Line_Q:		LD 	A, H			; Work out which diagonal we are on
-			CP	L
-			JR 	NC, Draw_Line_Q2
-;
-; This bit of code draws the line where B<C (more horizontal than vertical)
-;
-Draw_Line_Q1:		LD	B, L			; B = XL (loop counter)
-			LD	C, L			; C = XL (error)
-			SRL	C			; C = C / 2
-1:			CALL	Draw_Line_P
-			LD	A, C			; Subtract the line height from the error (E = E - YL)
-			SUB	H
-			JR	NC, 2F
-			ADD	A, L			; Add the line width to the error (E = E + XL) 
-			INC	D			; Move the pixel vertically		
-2:			LD	C, A
-			LD	A, E			; Move the pixel horizontally
-			ADD	A, IXL 
-			LD	E, A
-			DJNZ 	1B			; Loop until the line is drawn
-			JP	Draw_Line_P
-;
-; This bit draws the line where B>=C (more vertical than horizontal, or diagonal)
-;
-Draw_Line_Q2:		LD	B,  H			; B = YL (loop counter)
-			LD	C , H			; C = YL (error)
-			SRL	C			; C = C /2
-1:			CALL	Draw_Line_P
-			LD	A, C			; Subtract the line width from the error (E = E - XL)
-			SUB	L
-			LD	C, A
-			JR	NC, 2F			; Skip the next bit if we don't get a carry
-			ADD	A, H 			; Add the line height to the error (E = E + YL) 
-			LD	C, A
-			LD	A, E			; Move the pixel horizontally
-			ADD	A, IXL 
-			LD	E, A 
-2:			INC	D
-			DJNZ	1B			; Loop until the line is drawn
-Draw_Line_P:		PUSH	DE 			; Push DE
-			EXX 				; Into the alternate registers
-			POP	DE			; Plot the point
-			CALL_IY				; Call the plot routine
-			EXX
-			RET
-
-; Draw Circle (Beta - uses Plot to draw the circle outline as a proof of concept)
-;  D: Y pixel position of circle centre
-;  E: X pixel position of circle centre
-;  L: Radius
-;
-Draw_Circle:		LD	A, L
-			AND	A			; Is it zero radius
-			JP	Z,Plot_Point		; Just plot the point
-			LD	IYL, E 			; IYL: X Origin
-			LD	IYH, D			; IYH: Y Origin
-			LD	IXL, 0			; IXL: X
-			LD	IXH, A			; IXH: Y (Initially R)
-;
-; Calculate BC (D2) = 3 - (R * 2)
-;
-			LD	H, 0			; HL is R with top byte zeroed out
-			ADD	HL, HL			; HL = R * 2
-			EX	DE, HL			; DE = R * 2
-			LD	HL, 3
-			AND	A
-			SBC	HL, DE			; HL = 3 -( R * 2)
-			LD	B, H		
-			LD	C, L			; BC - 3 - (R * 2)
-;
-; Calculate HL (Delta) = 1 - R
-;
-			LD	HL, 1
-			LD	D, 0
-			LD	E, IXH
-			AND	A
-			SBC	HL,DE			; HL = 1 - CR
-;
-; SET DE (D1) = 1
-;
-			LD	DE, 1
-
-Draw_Circle_Loop:	LD	A, IXH			; Get Y in A
-			CP	IXL			; Compare with X
-			RET	C			; Return if X>Y
-;
-; The routine only calculates an eighth of the circle, so use symnmetry to draw
-;			
-			MACRO	PLOTC opx, r1, opy, r2	; Macro to simplify the source code
-			LD 	A, IYL			; Get the origin X
-			opx	r1			; Add or subtract the X or Y point
-			LD	E, A			; Store in X
-			LD	A, IYH 			; And repeat this for origin Y
-			opy	r2
-			LD	D, A			; But store in Y
-			CALL	Plot_Point		; Plot the point
-			ENDM
-			EXX
-			PLOTC	ADD, IXL, ADD, IXH	; Plot CX + X, CY + Y
-			PLOTC 	SUB, IXL, ADD, IXH	; Plot CX - X, CY + Y
-			PLOTC	ADD, IXL, SUB, IXH 	; Plot CX + X, CY - Y
-			PLOTC 	SUB, IXL, SUB, IXH 	; Plot CX - X, CY - Y
-			PLOTC	ADD, IXH, ADD, IXL	; Plot CX + Y, CY + X
-			PLOTC 	SUB, IXH, ADD, IXL 	; Plot CX - Y, CY + X
-			PLOTC	ADD, IXH, SUB, IXL 	; Plot CX + Y, CY - X
-			PLOTC 	SUB, IXH, SUB, IXL 	; Plot CX - Y, CY - X
-			EXX
-;
-; Do the incremental circle thing here
-;
-			BIT	7, H			; Check for Hl<=0
-			JR	Z,Draw_Circle_1
-			ADD	HL, DE			; Delta=Delta+D1
-			JR	Draw_Circle_2		; 
-Draw_Circle_1:		ADD	HL, BC			; Delta=Delta+D2
-			ADD	BC, 2			; D2=D2+2
-			DEC	IXH			; Y=Y-1
-Draw_Circle_2:		INC	BC			; D2=D2+2
-			INC	BC
-			ADD	DE, 2			; D1=D1+2
-			INC	IXL			; X=X+1
-			JP	Draw_Circle_Loop
 
 ; Set a palette colour
 ;  A: Colour to change (0 - 255)
@@ -391,5 +330,168 @@ Set_Palette_RGB:	NEXTREG	0x40, A 		; Select the colour to change
 			LD	C, A
 			NEXTREG	0x44, A 		; Write out final bit 
 			RET 
+
+; ----------------------------------------------------------------------------
+; Graphics Primitives
+; ----------------------------------------------------------------------------
+
+; Draw a line from position 1 to position 2 using Bresenham's Incremental Line algorithm
+; IY: Address of plot routine
+;  D: Y pixel position 1
+;  E: X pixel position 1
+;  H: Y pixel position 2
+;  L: X pixel position 2
+;
+Primitive_Line:		LD	A, H			; Check whether we are going to be drawing up
+			CP	D
+			JR	NC, 1F
+			EX	DE, HL 			; Swap (X1,Y1) with (X2, Y2) so we're always drawing down
+1:			LD	A, H			; Calculate the line height in H (Y2-Y1)
+			SUB	D
+			LD 	H, A		
+			LD	A, L			; Calculate the line width in L (X2-X1)
+			SUB 	E
+			LD	IXL, +1			; X direction rightwards
+			JR 	NC, 2F			; If carry not set (positiv result) then we are drawing from left to right
+			NEG 				; Negate with width
+			LD	IXL, -1 		; Switch X direction leftwards
+2:			LD	L, A
+;
+; We've got the basic information at this point
+;
+			LD	L, A			; L: XL
+			OR	H			; Check if XL and YL are 0
+			JR	Z, Primitive_Line_P	; There is no line, so just plot a single point
+;
+; At this point, the registers are
+;
+;   H: YL (Height)
+;   L: XL (Width)
+;   E: X
+;   D: Y
+; IXL: X direction
+;
+Primitive_Line_Q:	LD 	A, H			; Work out which diagonal we are on
+			CP	L
+			JR 	NC, Primitive_Line_Q2
+;
+; This bit of code draws the line where B<C (more horizontal than vertical)
+;
+Primitive_Line_Q1:	LD	B, L			; B = XL (loop counter)
+			LD	C, L			; C = XL (error)
+			SRL	C			; C = C / 2
+1:			CALL	Primitive_Line_P
+			LD	A, C			; Subtract the line height from the error (E = E - YL)
+			SUB	H
+			JR	NC, 2F
+			ADD	A, L			; Add the line width to the error (E = E + XL) 
+			INC	D			; Move the pixel vertically		
+2:			LD	C, A
+			LD	A, E			; Move the pixel horizontally
+			ADD	A, IXL 
+			LD	E, A
+			DJNZ 	1B			; Loop until the line is drawn
+			JP	Primitive_Line_P
+;
+; This bit draws the line where B>=C (more vertical than horizontal, or diagonal)
+;
+Primitive_Line_Q2:	LD	B,  H			; B = YL (loop counter)
+			LD	C , H			; C = YL (error)
+			SRL	C			; C = C /2
+1:			CALL	Primitive_Line_P
+			LD	A, C			; Subtract the line width from the error (E = E - XL)
+			SUB	L
+			LD	C, A
+			JR	NC, 2F			; Skip the next bit if we don't get a carry
+			ADD	A, H 			; Add the line height to the error (E = E + YL) 
+			LD	C, A
+			LD	A, E			; Move the pixel horizontally
+			ADD	A, IXL 
+			LD	E, A 
+2:			INC	D
+			DJNZ	1B			; Loop until the line is drawn
+Primitive_Line_P:	PUSH	DE 			; Push DE
+			EXX 				; Into the alternate registers
+			POP	DE			; Plot the point
+			CALL_IY				; Call the plot routine
+			EXX
+			RET
+
+; Draw Circle (Beta - uses Plot to draw the circle outline as a proof of concept)
+;  D: Y pixel position of circle centre
+;  E: X pixel position of circle centre
+;  L: Radius
+;
+Primitive_Circle:	LD	A, L
+			AND	A			; Is it zero radius
+			JP	Z,Plot_Point		; Just plot the point
+			LD	IYL, E 			; IYL: X Origin
+			LD	IYH, D			; IYH: Y Origin
+			LD	IXL, 0			; IXL: X
+			LD	IXH, A			; IXH: Y (Initially R)
+;
+; Calculate BC (D2) = 3 - (R * 2)
+;
+			LD	H, 0			; HL is R with top byte zeroed out
+			ADD	HL, HL			; HL = R * 2
+			EX	DE, HL			; DE = R * 2
+			LD	HL, 3
+			AND	A
+			SBC	HL, DE			; HL = 3 -( R * 2)
+			LD	B, H		
+			LD	C, L			; BC - 3 - (R * 2)
+;
+; Calculate HL (Delta) = 1 - R
+;
+			LD	HL, 1
+			LD	D, 0
+			LD	E, IXH
+			AND	A
+			SBC	HL,DE			; HL = 1 - CR
+;
+; SET DE (D1) = 1
+;
+			LD	DE, 1
+
+1:			LD	A, IXH			; Get Y in A
+			CP	IXL			; Compare with X
+			RET	C			; Return if X>Y
+;
+; The routine only calculates an eighth of the circle, so use symnmetry to draw
+;			
+			MACRO	PLOTC opx, r1, opy, r2	; Macro to simplify the source code
+			LD 	A, IYL			; Get the origin X
+			opx	r1			; Add or subtract the X or Y point
+			LD	E, A			; Store in X
+			LD	A, IYH 			; And repeat this for origin Y
+			opy	r2
+			LD	D, A			; But store in Y
+			CALL	Plot_Point		; Plot the point
+			ENDM
+			EXX
+			PLOTC	ADD, IXL, ADD, IXH	; Plot CX + X, CY + Y
+			PLOTC 	SUB, IXL, ADD, IXH	; Plot CX - X, CY + Y
+			PLOTC	ADD, IXL, SUB, IXH 	; Plot CX + X, CY - Y
+			PLOTC 	SUB, IXL, SUB, IXH 	; Plot CX - X, CY - Y
+			PLOTC	ADD, IXH, ADD, IXL	; Plot CX + Y, CY + X
+			PLOTC 	SUB, IXH, ADD, IXL 	; Plot CX - Y, CY + X
+			PLOTC	ADD, IXH, SUB, IXL 	; Plot CX + Y, CY - X
+			PLOTC 	SUB, IXH, SUB, IXL 	; Plot CX - Y, CY - X
+			EXX
+;
+; Do the incremental circle thing here
+;
+			BIT	7, H			; Check for Hl<=0
+			JR	Z, 2F
+			ADD	HL, DE			; Delta=Delta+D1
+			JR	3F			; 
+2:			ADD	HL, BC			; Delta=Delta+D2
+			ADD	BC, 2			; D2=D2+2
+			DEC	IXH			; Y=Y-1
+3:			INC	BC			; D2=D2+2
+			INC	BC
+			ADD	DE, 2			; D1=D1+2
+			INC	IXL			; X=X+1
+			JP	1B
 
 			ENDMODULE
