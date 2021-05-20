@@ -2,10 +2,11 @@
 ; Title:	BBC Basic for Spectrum Next - Editor
 ; Author:	Dean Belfield
 ; Created:	18/05/2021
-; Last Updated:	19/05/2021
+; Last Updated:	20/05/2021
 ;
 ; Modinfo:
 ; 19/05/2021:	Added cursor up, cursor down, and copy
+; 20/05/2021:	Fixed cursor and copy mode bugs
 
 			MODULE NEXT_EDITOR
 
@@ -161,6 +162,7 @@ Key_DEL:		BIT	4, B			; Are we in COPY mode?
 2:			PUSH	DE
 			PUSH	HL
 			EX	DE, HL 
+			CALL	NEXT_IO.Get_Charpos_1
 			CALL	NEXT_GRAPHICS.Get_Char
 			POP	HL
 			POP	DE
@@ -205,7 +207,10 @@ Move_Cursor_E:		LD	D, 0
 			BSRA	DE, B
 			LD	A, E
 			ADD	A, IXH 			; Add to existing cursor Y offset
-			LD	B, A
+			CP	24
+			JR	C, 1F
+			LD	A, 23
+1:			LD	B, A
 			LD	(CURSOR_X), BC		; Store new cursor position
 			RET 
 
