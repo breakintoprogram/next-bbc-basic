@@ -3,7 +3,7 @@
 ;		Spectrum Next Layer 2 Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	13/05/2021
-; Last Updated:	17/05/2021
+; Last Updated:	20/05/2021
 ;
 ; TODO:		L2 will read read/write access to the screen for any plot operation other than SET
 ;
@@ -11,6 +11,7 @@
 ; 14/05/2021:	Added plot modes
 ; 15/05/2021:	Plot now pulls PLOT_MODE and PLOT_COLOUR direct from RAM; Updates for MODE command
 ; 17/05/2021:	Tweaks for COLOUR, GCOL
+; 20/05/2021:	Added Draw_Horz_Line
 
 			MODULE	NEXT_GRAPHICS_L2
 
@@ -134,8 +135,8 @@ Get_Char_Address:	PUSH	DE
 
 ; Get pixel position
 ; Pages in the correct 16K Layer 2 screen bank into 0x0000
-; D: Y coordinate
-; E: X coordinate
+;  D: Y coordinate
+;  E: X coordinate
 ; Returns:
 ; HL: Address in memory (between 0x0000 and 0x3FFF)
 ;
@@ -194,13 +195,36 @@ Plot_NOT:		LD	A, (HL)
 			LD	(HL), A 
 			RET 
 
+; Draw Horizontal Line routine
+;  D: Y coordinate
+;  E: X pixel position 1
+;  B: X pixel position 2
+;
+Draw_Horz_Line:		LD	A, B			; Check if E (X1) > B (X2)
+			CP	E 
+			JR	NC,0F
+			LD 	B, E			; Swap B and D
+			LD 	E, A		
+0:			PUSH	BC 			; Stack colour and X2
+			CALL	Get_Pixel_Address	; Get pixel address
+			POP	BC 
+			LD	A, B 			; Calculate line length in bytes	
+			SUB 	E 
+			LD	B, A			; Length in B
+			INC	B
+			LD	A, (PLOT_COLOUR)
+1:			LD	(HL), A			; Draw the line
+			INC	L
+			DJNZ	1B
+			RET
+
 ; Set the graphics colour
 ;  C: Colour to set
 ;  B: Mode
 ;
 Set_Plot_Colour:	LD	A, B
 			CP	3
-			JP	Z, Set_Border
+			JP	Z, NEXT_GRAPHICS.Set_Border
 			LD	A, C
 			LD	(PLOT_COLOUR), A 
 			RET
@@ -216,7 +240,7 @@ Set_Text_Colour:	LD 	A, B
 			DEFW	Set_Text_Colour_All
 			DEFW	Set_Text_Foreground
 			DEFW	Set_Text_Background
-			DEFW	Set_Border
+			DEFW	NEXT_GRAPHICS.Set_Border
 
 Set_Text_Colour_All:	BIT	7, C
 			JR	Z, Set_Text_Foreground
