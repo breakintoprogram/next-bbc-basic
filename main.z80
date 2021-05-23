@@ -4,14 +4,15 @@
 ; Author:	(C) Copyright  R.T.Russell  1984
 ; Modified By:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	13/05/2021
+; Last Updated:	21/05/2021
 ;
 ; Modinfo:
 ; 07/05/1984:	Version 2.3
 ; 01/03/1987:	Version 3.0
 ; 02/05/2021:	Modified by Dean Belfield to assemble with SJASMPLUS
 ; 13/05/2021	Fixed (C) sign in boot message - removed Spectrum (C) symbol
-;
+; 21/05/2021:	Handful of Z80N optimisations
+
 			MODULE MAIN
 ;
 TERROR:			EQU     85H
@@ -907,9 +908,13 @@ BAD:			CALL    TELL            ;"Bad program'
 ;
 @OLD:			LD      HL,(PAGE)
 			PUSH    HL
+			IF	BUILD_Z80N = 1
+			ADD	HL, 3
+			ELSE
 			INC     HL
 			INC     HL
 			INC     HL
+			ENDIF
 			LD      BC,252
 			LD      A,CR
 			CPIR
@@ -1678,9 +1683,13 @@ LINNM1:			LD      A,(IY)
 			JR      C,TOOBIG
 			ADD     HL,HL           ;*10
 			JR      C,TOOBIG
+			IF	BUILD_Z80N = 1	;Z80N optimisation
+			ADD	HL, A
+			ELSE
 			LD      E,A
 			LD      D,0
 			ADD     HL,DE           ;ADD IN DIGIT
+			ENDIF
 			JR      NC,LINNM1       
 TOOBIG:			LD      A,20
 			JP      ERROR           ;"Too big"
