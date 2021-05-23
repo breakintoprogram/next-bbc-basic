@@ -4,12 +4,14 @@
 ; Author:	(C) Copyright  R.T.Russell  1986
 ; Modified By:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	05/05/2021
+; Last Updated:	22/05/2021
 ;
 ; Modinfo:
 ; 26/10/1986:	Version 0.0
 ; 14/12/1988:	Vesion 0.1 (Bug Fix)
 ; 02/05/2021:	Modified by Dean Belfield to assemble with SJASMPLUS
+; 22/05/2021:	Handful of Z80N optimisations
+
 ;
 ;BINARY FLOATING POINT REPRESENTATION:
 ;   32 BIT SIGN-MAGNITUDE NORMALIZED MANTISSA
@@ -69,6 +71,14 @@ OP:			CP      (RTABLE-DTABLE)/2
         		EX      AF,AF'
 DISPAT:			PUSH    HL
         		LD      HL,DTABLE
+			IF	BUILD_Z80N = 1	;Z80N optimisation
+			ADD	A,A
+			ADD	HL,A
+        		LD      A,(HL)          ;Get low byte
+        		INC     HL
+        		LD      H,(HL)          ;Get high byte
+        		LD      L,A
+			ELSE
         		PUSH    BC
         		ADD     A,A             ;A = op-code * 2
         		LD      C,A
@@ -79,6 +89,7 @@ DISPAT:			PUSH    HL
         		LD      H,(HL)          ;Get high byte
         		LD      L,A
         		POP     BC
+			ENDIF
         		EX      (SP),HL
         		RET                     ;Off to routine
 ;
@@ -2153,7 +2164,7 @@ MULB:			EXX
 ;            B'C'BCH'L'HL initialised to 0
 ;  Destroys: A,B,C,D,E,H,L,B',C',D',E',H',L',F
 ;
-SQR1:		SBC     HL,BC
+SQR1:			SBC     HL,BC
         		EXX
         		SBC     HL,BC
         		EXX
