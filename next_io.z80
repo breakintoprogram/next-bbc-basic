@@ -3,7 +3,7 @@
 ;		Spectrum Next I/O Routines
 ; Author:	Dean Belfield
 ; Created:	03/05/2021
-; Last Updated:	20/05/2021
+; Last Updated:	21/05/2021
 ;
 ; Modinfo:
 ; 10/05/2021:	Started implementing VDU engine
@@ -15,20 +15,38 @@
 ; 17/05/2021:	Removed PUSH/POP wrapper around Read_Keyboard and added HT and BS codes; Tweaks for COLOUR, GCOL
 ; 19/05/2021:	Added LF and VT on Shift 6 and 7 in Read_Keyboard and COPY on Shift 1
 ; 20/05/2021:	Print_Char now preserves IX
+; 21/05/2021:	Fixed debounce for EDIT and CAPS LOCK and added key repeat
 
 			MODULE	NEXT_IO
 
 ; Read the keyboard and return an ASCII character code
 ; Returns:
-;  A: 0x00 if no key pressed
+;  A: 0x00 (NUL) if no key pressed
 ;
 Read_Keyboard:		CALL	Keyscan			; Scan the keyboard
-			LD	A, E			; Check for keypress
+
+			LD	HL, (KEYSCAN)		; Are we stil pressing the same key combo
+			XOR	A 
+			SBC	HL, DE 	
+			LD	A, CONF_KEYRPT_1	; Initial key repeat value
+			JR	NZ, 1F			; No, so move onto next check
+			LD	A,(KEYREPEAT)		; Simple key repeat
+			DEC	A 
+			LD	(KEYREPEAT), A
+			LD	A, CONF_KEYRPT_2	; Subsequent key repeat value
+			JR	Z, 1F
+			XOR	A 
+			RET
+
+1:			LD	(KEYREPEAT), A
+			LD	(KEYSCAN), DE 		; Store the new keyscan
+			LD	A, E			; Get the keycode
 			INC	A			; Check for 0xFF
 			RET	Z			; Then no key has been pressed
 			DEC	A
 			LD	HL, KeyTable_Main	; Lookup the key value
 			ADD 	HL, A
+
 			LD	A, (HL)			; Fetch the key value
 
 			CP	"A"			; Is it a letter?
@@ -36,7 +54,7 @@ Read_Keyboard:		CALL	Keyscan			; Scan the keyboard
 
 			BIT	1, D 			; Has symbol shift been pressed?
 			JR	NZ, 2F			; Yes, so get the shifted value
-			LD	E, A			; Store the keypress
+			LD	E, A			; Store the keycode
 			LD	A, (FLAGS)		; Get caps lock flag
 			AND	%00100000
 			XOR	E
