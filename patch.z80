@@ -3,7 +3,7 @@
 ;		Patch file for Spectrum Next
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	20/05/2021
+; Last Updated:	23/05/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Fixed plot mode and bug in COMDS table
@@ -12,6 +12,8 @@
 ; 17/05/2021:	Fixed bug in OSLINE; now returns 0; Added cursor to OSLINE; Added *EDIT; Tweaks for COLOUR, GCOL
 ; 18/05/2021:	Moved editor code into editor.z80
 ; 20/05/2021:	Fixed bugs in MOVE and PLOT
+; 22/05/2021:	Fixed bugs in DRAW and OSKEY; Minor optimisations
+; 23/05/2021:	Implemented *. and *CD 
 
 			MODULE PATCH
 
@@ -64,7 +66,7 @@
 ;
 @GETCSR:		PUSH	AF
 			LD	D, 0
-			LD	H, 0 
+			LD	H, D
 			LD	A,(CHARPOS_X)
 			LD	E, A
 			LD 	A,(CHARPOS_Y)
@@ -72,14 +74,16 @@
 			POP	AF
 			RET
 
-; OSRDCH: read a character in from the keyboard (non-blocking)
+; Read character from keyboard (blocking)
 ;
-@OSRDCH:		LD	A, (KEYCODE)			; Wait for key to be released
-			AND	A 
-			JR	NZ, @OSRDCH
-1:			LD	A, (KEYCODE)			; And pressed again
-			AND	A 
-			JR	Z, 1B
+@OSRDCH:		LD	A, (KEYCODE)	; Read keyboard
+			OR	A 		
+			JR	Z, OSRDCH	; Loop until key is pressed
+			PUSH	AF
+1:			LD	A, (KEYCODE)	; And same again
+			OR	A 
+			JR	NZ, 1B 		; But loop until key is released
+			POP 	AF  		; Return the keycode
 			RET
 
 ; PROMPT: output the input prompt
@@ -94,16 +98,19 @@
 ;           If carry set A = character
 ; Destroys: A,H,L,F
 ;
-@OSKEY:			DEC	HL 
-			LD	A,H
+@OSKEY:			LD	A, (KEYCODE)	; Read keyboard
+			OR	A		; If we have a character
+			JR	NZ, 1F		; Then process it
+			LD	A,H		; Check if HL is 0 (this is passed by INKEY() function
 			OR	L
-			RET	Z 
-			CALL	OSRDCH
-			OR	A
-			JR	Z,OSKEY
-			CP	0x1B		; ESC
-			SCF 
-			RET	NZ
+			RET	Z 		; If it is then ret
+			HALT			; Bit of a bodge so this is timed in ms
+			DEC	HL 		; Decrement the counter and 
+			JR	@OSKEY 		; loop
+1:			CP	0x1B		; If we are not pressing ESC, 
+			SCF 			; then flag we've got a character
+			RET	NZ		
+;
 ESCSET: 		PUSH    HL
         		LD      HL,FLAGS
         		BIT     6,(HL)          ; ESC DISABLED?
@@ -111,11 +118,12 @@ ESCSET: 		PUSH    HL
         		SET     7,(HL)          ; SET ESCAPE FLAG
 ESCDIS: 		POP     HL
         		RET	
+;
 ESCTEST:		LD	A, (KEYCODE)
 			CP	0x1B		; ESC	
 			JR	Z,ESCSET
 			RET
-
+;
 @TRAP:			CALL	ESCTEST
 @LTRAP:			LD	A,(FLAGS)
 			OR	A
@@ -134,7 +142,7 @@ ESCTEST:		LD	A, (KEYCODE)
 ;
 @OSINIT: 		XOR	A
 			LD	(@FLAGS), A		; Clear flags
-         		LD 	DE, 0xFD00		; DE = HIMEM (currently under IM2 table)
+         		LD 	DE, IM2_Table - 256	; DE = HIMEM (currently under IM2 table)
          		LD 	HL, @USER
          		RET	
 
@@ -201,7 +209,7 @@ HUH:    		LD      A,254
 ; It looks like these need to be in alphabetical order
 ;
 COMDS:  		DC	'CAT':		DEFW STAR_DOT		; Catalogue SD Card
-			DC	'EDIT':		DEFW STAR_EDIT		; Pull a line down to edit
+			DC	'CD':		DEFW STAR_CD		; Change directory
 			DC	'FX':		DEFW STAR_FX		; FX commands
 			DC	'MEMDUMP': 	DEFW STAR_MEMDUMP	; Memory hex dump
 			DC	'TEST': 	DEFW STAR_TEST		; Test code call for debugging new functions
@@ -211,18 +219,23 @@ COMDS:  		DC	'CAT':		DEFW STAR_DOT		; Catalogue SD Card
 
 ; OSCLI - *CAT / *.
 ;
-STAR_DOT:		RET 
+STAR_DOT:		PUSH	IY
+			LD	A, 16
+			CALL	NEXT_DOS.LS
+			POP	IY
+			RET 
 
-; OSCLI - *EDIT n
+; OSCLI - *CD
 ;
-STAR_EDIT:		CALL	ASC_TO_NUMBER	; Get line number
-			LD	L, E 
-			LD	H, D 
-			PUSH	DE
-			CALL	FINDL
-			POP	DE
-			RET	NZ
-			RET
+STAR_CD:		CALL	SKIPSP
+			PUSH	HL
+			CALL	CRTONULL
+			PUSH	HL 
+			POP	IX 
+			LD	A, 16
+			CALL	NEXT_DOS.CD 
+			POP	HL
+			JP	NULLTOCR
 
 ; OSCLI FX n
 ; 19: HSYNC
@@ -249,14 +262,15 @@ STAR_MEMDUMP		CALL	ASC_TO_NUMBER	; Get start address
 ;
 STAR_TEST:		RET
 
+
 ; OSCLI TIME
 ; Output current time
 ;
 STAR_TIME:		CALL	GETIMS
 			EX	DE, HL 
-			LD	(HL), 0x0A
+			LD	(HL), LF
 			INC	HL 
-			LD	(HL), 0x0D
+			LD	(HL), CR
 			INC	HL
 			LD	(HL), 0
 			LD	HL, ACCS
@@ -455,7 +469,8 @@ STAR_TURBO:		CALL	ASC_TO_NUMBER
 			LD	A, L 		; A: Y1
 			POP	HL 		; L: X1
 			LD	H, A		; H: Y1
-			PUSH	HL 		; Stack that coordinate pair
+			EX	(SP), HL 	; Swap this with the first pair
+			PUSH	HL		; of coordinates on the stack
 ;
 2:			POP	DE 		; Pop (X1,Y1)
 			POP	HL		; Pop (X2,Y2)
@@ -463,7 +478,7 @@ STAR_TURBO:		CALL	ASC_TO_NUMBER
 			CALL	NEXT_GRAPHICS.Draw
 			POP	HL
 			LD	E, L 		; XL
-			LD	L, D		; YL
+			LD	L, H		; YL
 			LD	D, 0		; Clear top bytes
 			LD	H, D		
 			JP	PLOT_1
@@ -477,13 +492,8 @@ STAR_TURBO:		CALL	ASC_TO_NUMBER
 			CALL	EXPRI		; Get Y coordinate
 			EXX
 			POP	DE		; HL = Y, DE = X
-			LD	D, L		; D = Y, E = X
-			PIXELAD			; Get the pixel address in HL
-			SETAE			; Get pixel position in A
-			AND	(HL)		; Mask out pixel
-			LD	L, 0
-			JR	Z, 1F
-			INC	L
+			CALL	NEXT_GRAPHICS.Point
+			LD	L, A
 1:			CALL	BRAKET
 			JP      EVAL.COUNT0
 
