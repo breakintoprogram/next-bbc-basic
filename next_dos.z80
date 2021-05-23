@@ -3,23 +3,166 @@
 ;		Spectrum Next DOS routines
 ; Author:	Dean Belfield
 ; Created:	06/05/2021
-; Last Updated:	13/05/2021
+; Last Updated:	23/05/2021
+;
+; Notes:
+;
+; File Attributes
+;
+;  1 byte:  file/attributes (MS/DOS format)
+;  ? bytes  file/directory name (null terminated)
+;  2 bytes: timestamp (MS/DOS format)
+;  2 bytes: datestamp (MS/DOS format)
+;  4 bytes: filesize 
+;
+; Attribute Byte:
+; 
+; Bit 1: If set, the file/folder is hidden
+; Bit 4: It's a directory
+;
+; Timestamps
+;
+; ╔═══════╦══════╦═════════════════════════════╦══════════════════════════════════╗
+; ║ Bits  ║ Size ║         Description         ║             Comments             ║
+; ╠═══════╬══════╬═════════════════════════════╬══════════════════════════════════╣
+; ║ 0-4   ║    5 ║ Seconds (2-second interval) ║ 0..29 (29 represents 58 seconds) ║
+; ║ 5-10  ║    6 ║ Minutes                     ║ 0..59                            ║
+; ║ 11-15 ║    5 ║ Hour                        ║ 0..23                            ║
+; ╠═══════╬══════╬═════════════════════════════╬══════════════════════════════════╣
+; ║ 0-4   ║    5 ║ Day                         ║ 1..31                            ║
+; ║ 5-9   ║    4 ║ Month                       ║ 1..12                            ║
+; ║ 9-15  ║    7 ║ Year (as offset from 1980)  ║ 0 represents 1980                ║
+; ╚═══════╩══════╩═════════════════════════════╩══════════════════════════════════╝
 ;
 ; Modinfo:
 ; 13/05/2021:	Switched to using EXSDOS calls via RST 08
+; 23/05/2021:	Added CD and LS
 
 			MODULE	NEXT_DOS
 
-api_dosVersion		EQU	0x88
+m_dosversion		EQU	0x88
+m_getsetdrv		EQU	0x89
+m_gethandle		EQU     0x8D 		
+m_p3dos			EQU     0x94		
+m_errh			EQU     0x95			
 
-; Get DOS version
+f_open			EQU	0x9A
+f_close                 EQU     0x9B
+f_read			EQU	0x9D
+f_write			EQU	0x9E
+f_seek			EQU	0x9F
+f_getdir		EQU	0xA8
+f_setdir		EQU	0xA9
+f_opendir		EQU	0xA3
+f_readdir		EQU	0xA4
+f_telldir		EQU	0xA5
+f_seekdir		EQU	0xA6
+f_rewinddir		EQU	0xA7
+f_getcwd		EQU	0xA8
+f_chdir			EQU	0xA9
+
+fa_read			EQU	0x01
+fa_append		EQU	0x06
+fa_overwrite		EQU	0x0E
+
+; Change directory
+;  A: Drive
+; IX: Pointer to path
 ;
-Version:		CALLESX	api_dosVersion
-			JR	C, 1F
-			JR	NZ, 1F
-			Z80PORT	0xFE, 2
-			RET 
-1:			Z80PORT 0xFE, 1	
-			RET 
+CD:			CALLESX	f_chdir
+			JP	C, Error		
+			RET
+
+; Read a directory
+;  A: Drive
+;
+LS:			LD	IX, FBUFFER
+			CALLESX	f_getcwd 
+			JP	C, Error
+
+			LD	B, 0x00			; Access mode
+			CALLESX	f_opendir		; Open the directory
+			JP	C, Error		; Check for error
+			LD	(FH), A 		; Store the handle	
+;
+1:			LD	IX, FBUFFER		
+			LD	A, (FH)			; Read the next directory entry
+			CALLESX	f_readdir
+			JP	C, Error_Close		; Check for error
+			OR	A 
+			JR	NZ, 2F			; If we have a file to read, then do it
+;
+			LD	A, (FH)			; Otherwise, close the file handle
+			CALLESX	f_close			; and exit
+			JP	C, Error
+			RET
+;
+2:			BIT	1, (IX + 0)		; Check if hidden
+			JR	NZ, 1B
+;
+			LD	A, 19: LD (CHARPOS_X), A
+			PUSH	IX
+			POP	HL
+			INC	L
+			CALL	MAIN.TEXT		; Print the filename
+			PUSH	HL
+			POP	IY			; IY now points to the timestamp
+			XOR	A 
+			LD	(CHARPOS_X), A
+			LD	H, A
+			LD	A, (IY + 3)		; Get the year byte
+			RRA 
+			LD	L, A
+			ADD	HL, 1980		; Year offset
+			CALL	MAIN.PBCD
+			LD	A, "-"
+			CALL	OSWRCH
+;
+			LD	A, (IY + 3)		; Get the month
+			RRA 
+			LD	A, (IY + 2)
+			RRA 
+			SWAPNIB
+			AND	15
+			CALL	PRINT_BCD
+			LD	A, "-"
+			CALL	OSWRCH
+;
+			LD	A, (IY + 2)		; And the day
+			AND	31
+			CALL	PRINT_BCD
+;
+			BIT	4, (IX + 0)		; Is it a folder?
+			JR	NZ, 3F			; Yes, so skip next bit
+;
+			LD	E, (IY + 4)		; Byte 0 of the file length
+			LD	D, (IY + 5)		; Byte 1
+			LD	L, (IY + 6)		; Byte 2 
+			LD	H, (IY + 7)		; Byte 3  
+			CALL	HLDE_TO_FPP		; Convert to HLH'L' and C
+			LD	DE, ACCS		; Buffer to output the ASCII number to
+			LD	IX, STAVAR		; Used for the @% format variable
+			CALL	FPP.STR			; Output to DE
+			EX	DE, HL 
+			LD	(HL), 0			; Null terminate the string
+			LD	A, 7			; Right-align it
+			SUB	L
+			JR	C, 3F 
+			ADD	A, 11
+			LD	(CHARPOS_X), A
+			LD	L, 0
+			CALL	MAIN.TEXT		; And print it
+;
+3:			CALL	CRLF 
+			JP	1B
+
+;
+; Error handlers
+;
+Error_Close:		LD	A, (FH)
+			CALLESX	f_close
+Error:			XOR     A
+			CALL    EXTERR
+			DEFB    "ESXDOS Error", 0
 
 			ENDMODULE
