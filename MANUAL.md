@@ -1,6 +1,6 @@
 # manual
 
-The Next version is near identical to the original language, with the following changes:
+In addition to the core BBC Basic for Z80 core language (details of which [can be found here](bbcbasic.txt)), BBC Basic for Next adds the following functionality:
 
 ## Editor
 
@@ -33,17 +33,17 @@ Like PUT, this takes an optional type parameter to read from NEXTREG registers
 
 The only plot modes supported currently are:
 
-- PLOT 0, X, Y: Draw a line from last plot position to X, Y
-- PLOT 64, X, Y: Plot a point
-- PLOT 80, X, Y: Draw a filled triangle. The other two points are the last two plot positions.
-- PLOT 144, 0, R: Draw a circle of radius R. The center position is the last plot position
+- `PLOT 0, X, Y`: Draw a line from last plot position to X, Y
+- `PLOT 64, X, Y`: Plot a point
+- `PLOT 80, X, Y`: Draw a filled triangle. The other two points are the last two plot positions.
+- `PLOT 144, 0, R`: Draw a circle of radius R. The center position is the last plot position
 
 ### MODE n
 
 Two modes supported:
 
-- MODE 0: ULA mode (Normal Spectrum 256x192 Graphics)
-- MODE 1: Layer 2 mode (256 x 192, 256 colours per pixel)
+- `MODE 0`: ULA mode (Normal Spectrum 256x192 Graphics)
+- `MODE 1`: Layer 2 mode (256 x 192, 256 colours per pixel)
 
 ### COLOUR n[,type]
 
@@ -75,6 +75,18 @@ The VDU command is a work-in-progress with a handful of mappings implemented
 ## STAR commands
 
 The star commands are all prefixed with an asterisk. Numeric parameters can be specified in hexadecimal by prefixing with an '&' character.
+
+### CAT (or .)
+
+List the contents of the current directory
+
+### CD
+
+Change the current directory; works in much the same way as a PC/Mac command line:
+
+- `*CD name`: Change to the specified directory by name
+- `*CD ..`: Go back up a directory
+- `*CD \`: Go to the root directory
 
 ### TIME
 
