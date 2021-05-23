@@ -3,7 +3,7 @@
 ;		Spectrum Next Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	06/05/2021
-; Last Updated:	20/05/2021
+; Last Updated:	22/05/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Added Plot modes for Plot_ULA.
@@ -15,6 +15,7 @@
 ; 17/05/2021:	Added Get_Char and Display_Cursor; Tweaks for COLOUR, GCOL
 ; 18/05/2021:	Draw_Line now uses a callback to plot points
 ; 20/05/2021:	Added Plot_Triangle
+; 22/05/2021:	Added Point
 
 			MODULE	NEXT_GRAPHICS 
 
@@ -127,20 +128,42 @@ Get_Char:		LD	A, (VIDEO_MODE)
 			DEFW 	NEXT_GRAPHICS_ULA.Get_Char
 			DEFW	NEXT_GRAPHICS_L2.Get_Char
 
-; Plot a point
+; Boundary check
 ; HL: Y
 ; DE: X
-;  A: Type
+; Returns F:Carry if on screen
 ;
-Plot:			LD	B, A		; Store the plot type
+Pixel_Bounds_Check:	LD	B, A		; Store the plot type
 			LD	A, H		; Screen boundary check
 			OR	D		; Either H or D set?
 			RET	NZ		; Yes, so well off screen
 			LD	A, L 		; Is Y >= 192?
 			CP	192
 			RET	NC		; Yes, so also off screen
-1:			LD 	D, A		; D: Y coordinate
+			RET 
 
+; Read a point off the screen
+; HL: Y
+; DE: X
+; Returns:
+;  A: Point value
+;
+Point:			CALL	Pixel_Bounds_Check
+			RET	NC 
+			LD	D, L		; D: Y Coordinate
+			LD	A, (VIDEO_MODE)
+			CALL	SWITCH_A 
+			DEFW 	NEXT_GRAPHICS_ULA.Point
+			DEFW 	NEXT_GRAPHICS_L2.Point
+		
+; Plot a point
+; HL: Y
+; DE: X
+;  A: Type
+;
+Plot:			CALL	Pixel_Bounds_Check
+			RET	NC		; Yes, so also off screen
+			LD 	D, L		; D: Y coordinate
 			LD	A, B 		; Get plot type
 			AND	%11111000	; Divide by 8
 			RRA 
@@ -153,7 +176,8 @@ Plot:			LD	B, A		; Store the plot type
 			JR	Z, Plot_Triangle
 			CP	18
 			JP	Z, Plot_Circle	; Check for circle
-			RET
+			RET	
+
 ; Plot a point
 ;  E: X
 ;  D: Y

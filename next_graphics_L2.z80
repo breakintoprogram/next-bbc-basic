@@ -3,7 +3,7 @@
 ;		Spectrum Next Layer 2 Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	13/05/2021
-; Last Updated:	20/05/2021
+; Last Updated:	22/05/2021
 ;
 ; TODO:		L2 will read read/write access to the screen for any plot operation other than SET
 ;
@@ -12,6 +12,7 @@
 ; 15/05/2021:	Plot now pulls PLOT_MODE and PLOT_COLOUR direct from RAM; Updates for MODE command
 ; 17/05/2021:	Tweaks for COLOUR, GCOL
 ; 20/05/2021:	Added Draw_Horz_Line
+; 22/05/2021:	Added Point
 
 			MODULE	NEXT_GRAPHICS_L2
 
@@ -151,6 +152,14 @@ Get_Pixel_Address:	LD 	L,E			; The low byte is the X coordinate
 			OR	%00000011		; Set visible/write bits
 			LD	BC,0x123B		; Port #
 			OUT	(C),A 			; Page in the screen bank
+			RET
+
+; Read a point
+;  E: X
+;  D: Y
+;	
+Point:			CALL	Get_Pixel_Address
+			LD	A, (HL)
 			RET
 
 ; Plot a point

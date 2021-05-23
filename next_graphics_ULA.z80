@@ -3,13 +3,14 @@
 ;		Spectrum Next ULA Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	13/05/2021
-; Last Updated:	20/05/2021
+; Last Updated:	22/05/2021
 ;
 ; Modinfo:
 ; 15/05/2021:	Plot now pulls PLOT_MODE and PLOT_COLOUR direct from RAM; Updates for MODE command
 ; 17/05/2021:	Tweaks for COLOUR, GCOL
 ; 19/05/2021:	Fixed bug in Get_Char
 ; 20/05/2021:	Added Draw_Horz_Line; Fixed bug in Set_Attr
+; 22/05/2021:	Added Point; Minor optimisations
 
 			MODULE	NEXT_GRAPHICS_ULA
 
@@ -167,10 +168,9 @@ Get_Char:		CALL	Get_Char_Address	; Get character address in HL
 ;
 Get_Char_Address:	LD	A,H
 			AND	%00000111
-			RRA
-			RRA
-			RRA
-			RRA
+			RRCA
+			RRCA 
+			RRCA 
 			OR	L
 			LD	L,A
 			LD	A,H
@@ -197,6 +197,17 @@ Get_Attr_Address:	PUSH	DE
 			POP	DE
 			RET
 
+; Read a point
+;  E: X
+;  D: Y
+;	
+Point:			PIXELAD			; Get the pixel address in HL
+			SETAE			; Get pixel position in A
+			AND	(HL)		; Mask out pixel
+			RET	Z 
+			LD	A, 1
+			RET 
+			
 ; Plot a point
 ;  E: X
 ;  D: Y
@@ -284,9 +295,9 @@ Draw_Horz_Line:		LD	A, B			; Check if E (X1) > B (X2)
 			LD 	BC, Plot_Line_RHS
 			ADD	BC, A 
 			LD	A, D 			; Now the byte address for D
-			SRL	A 
-			SRL	A 
-			SRL	A 
+			RRCA
+			RRCA 
+			RRCA
 			AND	31 
 			LD	D, A 
 			LD	A, L
