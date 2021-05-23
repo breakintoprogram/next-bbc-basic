@@ -3,16 +3,18 @@
 ;		Spectrum Next Initialisation
 ; Author:	Dean Belfield
 ; Created:	04/05/2021
-; Last Updated:	17/05/2021
+; Last Updated:	23/05/2021
 ;
 ; Modinfo:
 ; 13/05/2021:	Added BUILD_VERSION
 ; 15/05/2021:	Updates for MODE command
 ; 17/05/2021:	Border colour now set in CLS
+; 21/05/2021:	Added Initialise_RAM
+; 23/05/2021:	Initialises page registers
 
 			MODULE	NEXT_INIT
 
-			DI
+System:			DI
 			LD 	SP,Stack_Top		; Stick the stack somewhere safe for now
 
 			NEXTREG	0x04, 0x03		
@@ -39,38 +41,39 @@
 			NEXTREG 0x07, 0x00		; CPU to 3.5Mhz
 
 			NEXTREG 0x43, %00000000		; Select ULA, first palette, not ULANext
+			
+			Z80PORT	0x1FFD, %00000100	; Page 48K BASIC in
+			Z80PORT 0x7FFD, %00010000
 
-			CALL 	Initialise_Interrupt
+			CALL	Initialise_RAM
+			CALL 	Initialise_Interrupt	; Initialise the interrupt handler
+
 			XOR	A			; Set the video mode
 			CALL	NEXT_GRAPHICS.Set_Video_Mode
 			CALL    TELL
 			DEFM	"Spectrum Next Version ", BUILD_VERSION, "\n\r"
 			DEFM	"\n\r"
 			DEFB    0
+			EI
 			JP	MAIN.COLD
+;
+; Initialise the RAM
+;
+Initialise_RAM:		LD	HL, RAM.Start
+			LD	BC, RAM.Length
+			LD	E, 0
+1:			LD	(HL), E
+			DEC	BC
+			LD	A, B 
+			OR	C 
+			JR	NZ, 1B
+			LD	A, %01000111:	LD (TEXT_FOREGROUND), A
+			LD	A, %01000111:	LD (PLOT_COLOUR), A
+			RET
+
 ;
 ; Interrupt routine
 ;
-Initialise_Interrupt:   DI
-                        LD	DE, IM2_Table		; The IM2 vector table (on page boundary)
-                        LD	HL, IM2_JP              ; Pointer for 3-byte interrupt handler
-                        LD	A, D                    ; Interrupt table page high address
-                        LD	I, A                    ; Set the interrupt register to that page
-                        LD	A, L                    ; Fill page with values
-1:                      LD	(DE), A 
-                        INC	E
-                        JR	NZ, 1B
-                        INC	D                       ; In case data bus bit 0 is not 0, we
-                        LD	(DE), A                 ; put an extra byte in here
-                        LD	(HL), 0xC3              ; Write out the interrupt handler, a JP instruction
-                        INC	L
-                        LD	(HL), low Interrupt     ; Store the address of the interrupt routine in
-                        INC	L
-                        LD	(HL), high Interrupt
-                        IM	2                       ; Set the interrupt mode
-                        EI                              ; Enable interrupts
-                        RET
-
 Interrupt:		DI
 			PUSH	AF, BC, DE, HL, IX
 			EXX
@@ -95,6 +98,26 @@ Interrupt:		DI
 			POP	IX, HL, DE, BC, AF
 			EI
 			RET	
+;
+; Interrupt routine
+;
+Initialise_Interrupt:	LD	DE, IM2_Table		; The IM2 vector table (on page boundary)
+                        LD	HL, IM2_JP              ; Pointer for 3-byte interrupt handler
+                        LD	A, D                    ; Interrupt table page high address
+                        LD	I, A                    ; Set the interrupt register to that page
+                        LD	A, L                    ; Fill page with values
+1:                      LD	(DE), A 
+                        INC	E
+                        JR	NZ, 1B
+                        INC	D                       ; In case data bus bit 0 is not 0, we
+                        LD	(DE), A                 ; put an extra byte in here
+                        LD	(HL), 0xC3              ; Write out the interrupt handler, a JP instruction
+                        INC	L
+                        LD	(HL), low Interrupt     ; Store the address of the interrupt routine in
+                        INC	L
+                        LD	(HL), high Interrupt
+                        IM	2                       ; Set the interrupt mode
+                        RET
 
 			ENDMODULE
 	
