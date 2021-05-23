@@ -4,7 +4,7 @@
 ; Author:	(C) Copyright  R.T.Russell  1984
 ; Modified By:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	05/05/2021
+; Last Updated:	21/05/2021
 ;
 ; Modinfo:
 ; 07/05/1984:	Version 2.3
@@ -13,6 +13,8 @@
 ; 30/09/1992:	INSTR bug fixed
 ; 02/05/2021:	Modified by Dean Belfield to assemble with SJASMPLUS
 ; 05/05/2021:	GET modified to take second optional parameter for Next registers
+; 21/05/2021:	Handful of Z80N optimisations
+
 ;
 ;BINARY FLOATING POINT REPRESENTATION:
 ;   32 BIT SIGN-MAGNITUDE NORMALIZED MANTISSA
@@ -974,11 +976,15 @@ INSTR2:			SBC     HL,SP
 ;           Z - found at location HL-1
 ;           Carry always cleared
 ;
-@SEARCH:		PUSH    BC
+@SEARCH:		IF	BUILD_Z80N = 1	;Z80N optimisation
+			ADD	HL,A
+			ELSE
+			PUSH    BC
 			LD      B,0
 			LD      C,A
 			ADD     HL,BC           ;NEW START ADDRESS
 			POP     BC
+			ENDIF
 			SUB     C
 			JR      NC,SRCH4
 			NEG
@@ -1314,7 +1320,7 @@ SCP1:			DEC     B
 			INC     HL
 			JR      SCP1
 SCP2:			OR      A
-				DEC     C
+			DEC     C
 			RET     Z
 			SCF
 			RET
@@ -1451,7 +1457,16 @@ DISPT2:			PUSH    HL
 DISPAT:			PUSH    HL
 			SUB     FUNTOK
 			LD      HL,FUNTBL
-DISPT0:			PUSH    BC
+			
+DISPT0:			IF	BUILD_Z80N = 1	;Z80N optimisation
+			ADD	A,A
+			ADD	HL,A
+			LD      A,(HL)
+			INC     HL
+			LD      H,(HL)
+			LD      L,A
+			ELSE
+			PUSH    BC
 			ADD     A,A
 			LD      C,A
 			LD      B,0
@@ -1461,6 +1476,7 @@ DISPT0:			PUSH    BC
 			LD      H,(HL)
 			LD      L,A
 			POP     BC
+			ENDIF
 			EX      (SP),HL
 			RET                     ;OFF TO ROUTINE
 ;
