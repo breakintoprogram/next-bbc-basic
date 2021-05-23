@@ -4,7 +4,7 @@
 ; Author:	(C) Copyright  R.T.Russell  1984
 ; Modified By:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	17/05/2021
+; Last Updated:	21/05/2021
 ;
 ; Modinfo:
 ; 27/01/1984:	Version 2.1
@@ -15,7 +15,7 @@
 ; 13/05/2021:	Added Z80N instructions to OPCODS and used OPCODE macro to make it a bit easier to understand
 ; 14/05/2021:	Fixed the assembler output tabbing - optimised for 32 columns
 ; 17/05/2021:	Fixed typos in OPRNDS that prevented LD (IX/Y) from working
-;
+; 21/05/2021:	Handful of Z80N optimisations
 
 			MODULE EXEC
 ;
@@ -139,10 +139,15 @@ XEQ1:			CALL    NXT
 			SUB     TCMD
 			JR      C,LET0          ;IMPLIED "LET"
 			ADD     A,A
+			IF	BUILD_Z80N = 1	;Z80N optimisation
+			LD	HL,CMDTAB
+			ADD	HL,A
+			ELSE
 			LD      C,A
 			LD      B,0
 			LD      HL,CMDTAB
 			ADD     HL,BC
+			ENDIF
 			LD      A,(HL)          ;TABLE ENTRY
 			INC     HL
 			LD      H,(HL)
@@ -1431,9 +1436,13 @@ STORES:			RRA
 			LD      H,L
 			EXX
 			PUSH    HL
+			IF	BUILD_Z80N = 1	;Z80N optimisation
+			ADD	HL,A
+			ELSE
 			LD      B,0
 			LD      C,A
 			ADD     HL,BC
+			ENDIF
 			LD      BC,(FREE)
 			SBC     HL,BC           ;IS STRING LAST?
 			POP     HL
@@ -1904,10 +1913,14 @@ HEXSP:			CALL    HEX
 			LD      A,' '
 			JR      OUTCH1
 HEX:			PUSH    AF
+			IF	BUILD_Z80N = 1	;Z80N optimisation
+			SWAPNIB
+			ELSE
 			RRCA
 			RRCA
 			RRCA
 			RRCA
+			ENDIF
 			CALL    HEXOUT
 			POP     AF
 HEXOUT:			AND     0FH
