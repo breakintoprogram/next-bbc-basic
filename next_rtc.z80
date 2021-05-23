@@ -4,7 +4,7 @@
 ; Link:		https://gitlab.com/thesmog358/tbblue/-/blob/master/src/asm/rtc/date.asm
 ; Modified By:	Dean Belfield
 ; Created:	10/05/2021
-; Last Updated:	10/05/2021
+; Last Updated:	22/05/2021
 ;
 ; Notice:	Portions of this code to read the RTC module on the Next have
 ;		been copied from the dot function date.asm with minor changes.
@@ -15,7 +15,7 @@
 ;		For example:			Wed,09 Aug 2020.13:51:44
 ;
 ; Modinfo:
-;
+; 22/05/2021:	Minor optimisations
 
 			MODULE	NEXT_RTC
 
@@ -165,13 +165,17 @@ READ:			CALL	SDA1		; Free the data line
 READ_LOOP:		RLC	(HL)		; Next bit
 			CALL	SCL1		; Clock is high
 			LD	B, PORT_DATA	; Read the bit
-			IN	A,(C)
-			AND	1		; Is it 1??
-			JR	NZ, SET_BIT
-			RES	0,(HL)
+			IN	A, (C)
+;
+;			AND	1		; Is it 1??
+;			JR	NZ, SET_BIT
+			RRCA			; DB: Optimisation
+			JR	C, SET_BIT
+;
+			RES	0, (HL)
 			JR	END_SET
 	
-SET_BIT:		SET 	0,(HL)
+SET_BIT:		SET 	0, (HL)
 	
 END_SET:		CALL 	SCL0		; Clock is low
 			DEC 	D
@@ -180,15 +184,18 @@ END_SET:		CALL 	SCL0		; Clock is low
 	
 SEND_NACK:		LD	A, 1
 			JR	SEND_ACK_NACK	
-
+			
 SEND_ACK:		XOR	A 		
 SEND_ACK_NACK:		CALL 	SDA
 			call 	PULSE_CLOCK
 			JR 	SDA1		; Free the data line
 
-START_SEQUENCE:		LD	A, 1		 ;High in both i2c pins, before begin
-			LD	C, PORT
-			CALL 	SCL 
+START_SEQUENCE:		LD	C, PORT
+;
+;			LD	A, 1		 ;High in both i2c pins, before begin
+;			CALL 	SCL 
+			CALL	SCL1		; DB: Optimisation
+;
 			CALL 	SDA
 			CALL 	SDA0		; High to low when clock is high
 			JR	SCL		; Low the clock to start sending data
