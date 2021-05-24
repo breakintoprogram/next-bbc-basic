@@ -2,26 +2,40 @@
 ; Title:	BBC Basic for Spectrum Next - Main build file
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	18/05/2021
+; Last Updated:	24/05/2021
+;
+; Notes:
+; To start CSpect, use the following command line (Mac)
+; > mono CSpect.exe -w4 -basickeys -zxnext -nextrom -tv -16bit -s28 -remote -mmc=cspect-next-2gb.img
 ;
 ; Modinfo:
 ; 10/05/2021:	Moved Next specific RAM declarations into ram.z80 and tidied up a bit
 ; 13/05/2021:	Added BUILD_VERSION define
 ; 16/05/2021:	USER now aligned to page boundary - fixes bug in OLD
 ; 18/05/2021:	Moved editor functions to editor.z80
+; 21/05/2021:	Addd a configuration section
+; 24/05/2021:	Moved Code_Start down to 0x5B00 (after ULA screen RAM)
 
 			SLDOPT COMMENT WPMEM, LOGPOINT, ASSERTION
 			
 			DEVICE ZXSPECTRUMNEXT		; sjasmplus directive for SAVESNA at end
 
-			DEFINE BUILD_VERSION "0.04"	; Build version
-;
+			DEFINE BUILD_VERSION "0.06"	; Build version
+;	
 ; Assembly flags
 ;
 BUILD_ROM		EQU	0			; Set to 1 to build a ROM image
 BUILD_EMULATOR		EQU	1			; Set to 1 to build for ZEsarUX; adds various bodges in
 BUILD_Z80N		EQU	1			; Set to 1 to use Z80N optimized code in R.T.Russell's code
-
+BUILD_OPT		EQU	1			; Set to 1 to use misc.z80 optimisations in R.T.Russell's code
+;
+; Configuration
+;
+CONF_KEYRPT_1:		EQU	20			; Initial key repeat (50ths of a second)
+CONF_KEYRPT_2:		EQU	5			; Subsequent key repeats (50ths of a second)
+;
+; Emulator bodges 
+;
 			IF	BUILD_EMULATOR = 1	
 ULA_X_SCROLL		EQU	0x32			; ZEsarUX 9.2 incorrectly implements ULA scrolling registers
 ULA_Y_SCROLL		EQU	0x33
@@ -29,11 +43,13 @@ ULA_Y_SCROLL		EQU	0x33
 ULA_X_SCROLL		EQU	0x26			
 ULA_Y_SCROLL		EQU	0x27
 			ENDIF
-
+;
+; Memory map
+;
 IM2_Table:              EQU	0xFE00			; 256 byte page (+ 1 byte) for IM2
 IM2_JP:                 EQU	0xFDFD			; 3 bytes for JP routine under IM2 table
 Stack_Top:		EQU	0x0000			; Stack at top
-Code_Start		EQU	0x6000
+Code_Start		EQU	0x5B00			; Code straight after screen RAM
 
 			ORG 	Code_Start
 
@@ -66,7 +82,7 @@ Code_Start		EQU	0x6000
 
 			ALIGN 	256			; USER needs to be alignd to a page boundary
 
-@USER:			incbin "examples/animal.bbc"	; BASIC program to load into memory
+@USER:;			incbin "examples/animal.bbc"	; BASIC program to load into memory
 
 	 		SAVENEX OPEN "Z80/BBC Basic/build.nex", Code_Start, Stack_Top
 			SAVENEX CORE 3, 0, 0
