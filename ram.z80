@@ -6,7 +6,7 @@
 ; Author:	(C) Copyright  R.T.Russell 31-12-1983
 ; Modified By:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	23/05/2021
+; Last Updated:	24/05/2021
 ;
 ; Modinfo:
 ; 02/05/2021:	Modified by Dean Belfield to assemble with SJASMPLUS
@@ -16,6 +16,7 @@
 ; 19/05/2021:	Added CURSOR_X and CURSOR_Y
 ; 21/05/2021:	Added KEYSCAN and KEYREPEAT
 ; 23/05/2021:	Added FH and FBUFFER
+; 24/05/2021:	FBUFFER reuses ACCS
 
 			MODULE RAM
 
@@ -58,7 +59,8 @@ Start:			EQU 	$
 ; Extra Next-implementation specific system variables
 ;
 @VDU_BUFFER:		EQU	BUFFER		; Storage for VDU commands
-
+@FBUFFER:		EQU	ACCS		; File buffer
+;
 @FLAGS:			DEFS	1		; Flags: B7=ESC PRESSED, B6=ESC DISABLED, B5=CAPS LOCK, B4=COPY PRESSED
 @KEYSCAN:		DEFS	2		; Results of last keyscan
 @KEYREPEAT:		DEFS	1		; Key repeat counter
@@ -91,7 +93,6 @@ Start:			EQU 	$
 @RTC_MONTH:		DEFS 	1	
 @RTC_YEAR:		DEFS	1
 @FH:			DEFS	1		; File handle store
-@FBUFFER:		DEFS	32		; File buffer
 
 Length:			EQU	$ - Start
 
