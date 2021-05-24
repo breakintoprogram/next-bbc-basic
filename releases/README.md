@@ -3,7 +3,14 @@
 
 These releases are compiled on an ad-hoc basis and have been tested on the MiSTer Next core, ZEsarUX emulator (9.2) and CSpect (2.13.01)
 
-If you are using ZEsarUX, please use the nex file that ends in "_em"; this binary is assembled slightly differently to get around some bugs in the emulator, namely ULA hardware scrolling.
+#### Using with ZEsarUX
+
+Please use the nex file that ends in "_em"; this binary is assembled slightly differently to get around some bugs in the emulator, namely ULA hardware scrolling.
+
+Also, to use file IO, you will need to copy the nex file to the img file and launch from the Next browser. The esxDOS file system is not initialised properly if the nex file is dragged into the emulator or loaded using Smart Load.
+
+##### 20210524: Version 0.06
+- Added disk operations LOAD, CHAIN and SAVE
 
 ##### 20210523: Version 0.05
 - Added disk operations *CAT and *CD
