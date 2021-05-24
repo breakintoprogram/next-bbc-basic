@@ -12,7 +12,7 @@ A copy mode is provided, by pressing EDIT (Shift+1). When in copy mode, the curs
 
 The assembler has been extended to handle Z80N instructions.
 
-See [test_assembler_Z80N.bbc](tests/test_assembler_Z80N.bbc) in the folder tests for a usage example.
+See [test_assembler_Z80N.bbc](tests/source%20text/assembler_Z80N.txt) in the folder tests for a usage example.
 
 ## BASIC
 
