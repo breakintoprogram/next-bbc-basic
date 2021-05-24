@@ -30,7 +30,7 @@ I'm attempting to make this as close to Version 4 of the BBC Basic Standard, res
 
 ### Assembling
 
-The code is written to be assmbled by the SJASMPLUS assembler. Details of the toolchain I use [can be found here on my website](http://www.breakintoprogram.co.uk/computers/zx-spectrum-next/assembly-language/z80-development-toolchain).
+The code is written to be assembled by the SJASMPLUS assembler. Details of the toolchain I use [can be found here on my website](http://www.breakintoprogram.co.uk/computers/zx-spectrum-next/assembly-language/z80-development-toolchain).
 
 Please note that you will need to set the conditional assembly flag BUILD_EMULATOR to 1 in the file [build.z80](build.z80) if you are assembling this for ZEsarUX. It uses out-of-date register numbers for the ULA hardware scrolling.
 
