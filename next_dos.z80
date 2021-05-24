@@ -3,7 +3,7 @@
 ;		Spectrum Next DOS routines
 ; Author:	Dean Belfield
 ; Created:	06/05/2021
-; Last Updated:	23/05/2021
+; Last Updated:	24/05/2021
 ;
 ; Notes:
 ;
@@ -37,6 +37,7 @@
 ; Modinfo:
 ; 13/05/2021:	Switched to using EXSDOS calls via RST 08
 ; 23/05/2021:	Added CD and LS
+; 24/05/2021:	Added LOAD and SAVE
 
 			MODULE	NEXT_DOS
 
@@ -64,6 +65,56 @@ f_chdir			EQU	0xA9
 fa_read			EQU	0x01
 fa_append		EQU	0x06
 fa_overwrite		EQU	0x0E
+
+; Load a file
+;  A: Drive
+; IX: Pointer to path
+; DE: Load address
+; BC: Maximum number of bytes to load
+;
+Load:			PUSH	BC
+			PUSH	DE
+			LD	B, 0x01			; Open for read
+			CALLESX	f_open
+			JP	NC, 1F			
+			POP	DE			; Pop the stack
+			POP	BC			; and
+			JP	Error			; flag the error
+;		
+1:			LD	(FH), A			; Store the file handle
+			POP	IX			; Get the address
+			POP	BC			; And the length
+			CALLESX	f_read 			; Read the data in
+			JP	C, Error_Close		; Flag error if carry set
+			SCF				; Set carry for BASIC (no error)
+;
+Close:			PUSH	AF			; Preserve the carry flag
+			LD	A, (FH)
+			CALLESX	f_close			; Close the file
+			POP	AF
+			RET 
+
+; Save a file
+;  A: Drive
+; IX: Pointer to path
+; DE: Start address
+; BC: Length of data to save
+;
+Save:			PUSH	BC
+			PUSH	DE
+			LD	B, 0x06			; Open for write, error if exists
+			CALLESX	f_open
+			JP	NC, 1F
+			POP	DE			; Pop the stakc
+			POP	BC			; and
+			JP	Error			; flag the error
+;		
+1:			LD	(FH), A			; Store the file handle
+			POP	IX			; Get the address
+			POP	BC			; And the length
+			CALLESX	f_write			; Write the data
+			JP	C, Error_Close		; Flag error if carry set
+			JR	Close			; Okay at this point, just close
 
 ; Change directory
 ;  A: Drive
@@ -159,8 +210,7 @@ LS:			LD	IX, FBUFFER
 ;
 ; Error handlers
 ;
-Error_Close:		LD	A, (FH)
-			CALLESX	f_close
+Error_Close:		CALL 	Close
 Error:			XOR     A
 			CALL    EXTERR
 			DEFB    "ESXDOS Error", 0
