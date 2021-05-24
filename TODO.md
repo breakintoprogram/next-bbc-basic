@@ -1,6 +1,8 @@
 # TODO
 ### Next Jobs
 - Stub AY sound support
+- Add *DELETE to delete a saved file
+- Add *RUN to run an exsDOS dot command  
 ### Known Bugs
 - The graphics primitives (line, circle, triangle) do not clip
 - Plot modes 1-5 and Point do not work in Mode 1
@@ -8,7 +10,13 @@
 - No cursor in MODE 1
 - Editor scrolls incorrectly when editing at bottom of screen
 - Unable to type in COPY mode
+- Timestamp not set in saved files
+- No attempt to check whether a loaded file will fit in memory
+- Errors in exsDOS are generic, need to be more specific
 ### Fixed Bugs:
+#### Version 0.06
+- Scrolling in Mode 1 fills with black rather than the background colour
+- SAVE, LOAD and CHAIN commands now implemented
 #### Version 0.05
 - Get rudimentary file system up and running
 - Fixed debounce on CAPS LOCK or EDIT
