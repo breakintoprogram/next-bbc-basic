@@ -3,7 +3,7 @@
 ;		Spectrum Next Layer 2 Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	13/05/2021
-; Last Updated:	22/05/2021
+; Last Updated:	24/05/2021
 ;
 ; TODO:		L2 will read read/write access to the screen for any plot operation other than SET
 ;
@@ -13,6 +13,7 @@
 ; 17/05/2021:	Tweaks for COLOUR, GCOL
 ; 20/05/2021:	Added Draw_Horz_Line
 ; 22/05/2021:	Added Point
+; 24/05/2021:	Clear_Line now uses the background colour
 
 			MODULE	NEXT_GRAPHICS_L2
 
@@ -61,8 +62,9 @@ Clear_Line:		LD 	L, 0
 			CALL	NEXT_IO.Get_Charpos_1
 			CALL	Get_Char_Address
 			XOR	A 
-			LD	B, A 
+			LD	B, 0 
 			LD	C, 8
+			LD	A, (TEXT_BACKGROUND)
 1:			LD	(HL), A 
 			INC	HL
 			DJNZ	1B
