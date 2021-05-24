@@ -25,6 +25,11 @@ An additional optional parameter, type, has been added.
 - 1: write out value to a NEXTREG register
 - 0: write value to a Z80 port. 
 
+Examples:
+
+- `PUT 254,5` Output 5 to Z80 port 254
+- `PUT 7,3,1` Output 3 to Next Register 7
+
 ### GET(port[,type])
 
 Like PUT, this takes an optional type parameter to read from NEXTREG registers
@@ -33,17 +38,27 @@ Like PUT, this takes an optional type parameter to read from NEXTREG registers
 
 The only plot modes supported currently are:
 
-- `PLOT 0, X, Y`: Draw a line from last plot position to X, Y
-- `PLOT 64, X, Y`: Plot a point
-- `PLOT 80, X, Y`: Draw a filled triangle. The other two points are the last two plot positions.
-- `PLOT 144, 0, R`: Draw a circle of radius R. The center position is the last plot position
+- `PLOT 0, X, Y` Draw a line from last plot position to X, Y
+- `PLOT 64, X, Y` Plot a point
+- `PLOT 80, X, Y` Draw a filled triangle. The other two points are the last two plot positions.
+- `PLOT 144, 0, R` Draw a circle of radius R. The center position is the last plot position
+
+Examples:
+
+Draw a triangle:
+
+`MOVE 10,15: MOVE 253,40: PLOT 80,55,181`
+
+Draw a circle
+
+`MOVE 128,96: PLOT 144,0,95`
 
 ### MODE n
 
 Two modes supported:
 
-- `MODE 0`: ULA mode (Normal Spectrum 256x192 Graphics)
-- `MODE 1`: Layer 2 mode (256 x 192, 256 colours per pixel)
+- `MODE 0` ULA mode (Normal Spectrum 256x192 Graphics)
+- `MODE 1` Layer 2 mode (256 x 192, 256 colours per pixel)
 
 ### COLOUR n[,type]
 
@@ -55,6 +70,10 @@ An additional optional parameter, type, has been added. If not specified, will d
 - 3: Set border colour
 - 4: Set bright (Mode 0 only)
 - 5: Set flash (Mode 0 only)
+
+Examples:
+
+- `COLOUR 2,3` Set the border colour to Red
 
 ### GCOL mode, colour[, type]
 
@@ -68,9 +87,31 @@ This is an attempt to stick to the BBC BASIC standard with 1-bit graphics
 
 Mode for MODE 1 should work as per BBC Basic specifications but currently only supports 0 and 6 due to a memory mapping issue I need to resolve.
 
+All types are valid for Mode 0. Mode 1 only recognises type 0, 1 and 3.
+
 ### VDU
 
-The VDU command is a work-in-progress with a handful of mappings implemented
+The VDU command is a work-in-progress with a handful of mappings implemented:
+
+- `VDU 8` Backspace
+- `VDU 9` Advance one character
+- `VDU 10` Line feed
+- `VDU 11` Move cursor up one line
+- `VDU 12` CLS
+- `VDU 13` Carriage return
+- `VDU 17` COLOUR col
+- `VDU 18` GCOL mode, col
+- `VDU 19` COLOUR l, r, g, b
+- `VDU 22` Mode n
+- `VDU 25` PLOT mode, x, y
+- `VDU 30` Home cursor
+- `VDU 31` TAB(x, y)
+
+Examples:
+
+`VDU 25,64,128,88` Plot point in middle of screen
+
+`VDU 22,1` Change to Mode 1
 
 ## STAR commands
 
@@ -84,9 +125,9 @@ List the contents of the current directory
 
 Change the current directory; works in much the same way as a PC/Mac command line:
 
-- `*CD name`: Change to the specified directory by name
-- `*CD ..`: Go back up a directory
-- `*CD \`: Go to the root directory
+- `*CD name` Change to the specified directory by name
+- `*CD ..` Go back up a directory
+- `*CD \` Go to the root directory
 
 ### TIME
 
@@ -106,9 +147,13 @@ Will set the Next CPU turbo mode:
 
 List contents of memory, hexdump and ASCII.
 
+Example:
+
+`*MEMDUMP 0, 200` Dump the first 200 bytes of ROM
+
 ### FX n
 
-- 19: The only FX command supported - waits for the horizontal sync
+- `*FX 19` Wait for the horizontal sync
 
 ## Other considerations
 
