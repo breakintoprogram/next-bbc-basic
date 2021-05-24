@@ -3,7 +3,7 @@
 ;		Patch file for Spectrum Next
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	23/05/2021
+; Last Updated:	24/05/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Fixed plot mode and bug in COMDS table
@@ -14,6 +14,7 @@
 ; 20/05/2021:	Fixed bugs in MOVE and PLOT
 ; 22/05/2021:	Fixed bugs in DRAW and OSKEY; Minor optimisations
 ; 23/05/2021:	Implemented *. and *CD 
+; 24/05/2021:	Implemented OSLOAD and OSSAVE
 
 			MODULE PATCH
 
@@ -346,6 +347,8 @@ STAR_TURBO:		CALL	ASC_TO_NUMBER
 			CALL    BRAKET
 			JP      EVAL.COUNT0
 
+; ----------------------------------------------------------------------------
+
 ; COLOUR col[,type]
 ; Set the text colour
 ;   col: 0-127 (foreground), 128-255 (backround)
@@ -497,6 +500,35 @@ STAR_TURBO:		CALL	ASC_TO_NUMBER
 1:			CALL	BRAKET
 			JP      EVAL.COUNT0
 
+; ----------------------------------------------------------------------------
+
+;OSLOAD - Load an area of memory from a file.
+;   Inputs: HL addresses filename (CR terminated)
+;           DE = address at which to load
+;           BC = maximum allowed size (bytes)
+;  Outputs: Carry reset indicates no room for file.
+; Destroys: A,B,C,D,E,H,L,F
+;
+@OSLOAD:		CALL	CRTONULL
+			PUSH	HL 
+			POP	IX 
+			LD	A, 16
+			JP	NEXT_DOS.Load
+
+;OSSAVE - Save an area of memory to a file.
+;   Inputs: HL addresses filename (term CR)
+;           DE = start address of data to save
+;           BC = length of data to save (bytes)
+; Destroys: A,B,C,D,E,H,L,F
+;
+@OSSAVE:		CALL	CRTONULL
+			PUSH	HL 
+			POP	IX 
+			LD	A, 16
+			JP	NEXT_DOS.Save
+
+; ----------------------------------------------------------------------------
+
 ; Stuff not implemented yet
 ; There's also more stuff in sorry.z80
 ;
@@ -506,8 +538,6 @@ STAR_TURBO:		CALL	ASC_TO_NUMBER
 @OSSHUT:
 @OSOPEN:
 @OSCALL:
-@OSSAVE:
-@OSLOAD:
 @GETPTR:
 @PUTPTR:
 @GETEXT:
