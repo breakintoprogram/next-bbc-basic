@@ -12,7 +12,7 @@ A copy mode is provided, by pressing EDIT (Shift+1). When in copy mode, the curs
 
 The assembler has been extended to handle Z80N instructions.
 
-See [test_assembler_Z80N.bbc](tests/source%20text/assembler_Z80N.txt) in the folder tests for a usage example.
+See [assembler_Z80N.bbc](tests/source%20text/assembler_Z80N.txt) in the folder [tests/source text](tests/source%20text) for a usage example.
 
 ## BASIC
 
@@ -71,9 +71,13 @@ An additional optional parameter, type, has been added. If not specified, will d
 - 4: Set bright (Mode 0 only)
 - 5: Set flash (Mode 0 only)
 
+Mode 1 and 2 are useful in Mode 1, as it allows you to access all 256 Next colours. Mode 0 is maintained as a default, but will only allow you to access the first 128 colours.
+
 Examples:
 
 - `COLOUR 2,3` Set the border colour to Red
+- `COLOUR 1,255` Set the foreground colour to 255 (Mode 1)
+- `COLOUR 5,1` Set to flash (Mode 0)
 
 ### GCOL mode, colour[, type]
 
@@ -99,17 +103,17 @@ The VDU command is a work-in-progress with a handful of mappings implemented:
 - `VDU 11` Move cursor up one line
 - `VDU 12` CLS
 - `VDU 13` Carriage return
-- `VDU 17` COLOUR col
-- `VDU 18` GCOL mode, col
-- `VDU 19` COLOUR l, r, g, b
-- `VDU 22` Mode n
-- `VDU 25` PLOT mode, x, y
+- `VDU 17,col` COLOUR col
+- `VDU 18,mode,col` GCOL mode,col
+- `VDU 19,l,r,g,b` COLOUR l,r,g,b
+- `VDU 22,n` Mode n
+- `VDU 25,mode,x;y;` PLOT mode,x,y
 - `VDU 30` Home cursor
-- `VDU 31` TAB(x, y)
+- `VDU 31,x,y` TAB(x,y)
 
 Examples:
 
-`VDU 25,64,128,88` Plot point in middle of screen
+`VDU 25,64,128;88;` Plot point in middle of screen
 
 `VDU 22,1` Change to Mode 1
 
