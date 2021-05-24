@@ -2,12 +2,13 @@
 ; Title:	BBC Basic for Spectrum Next - Miscellaneous helper functions
 ; Author:	Dean Belfield
 ; Created:	10/05/2021
-; Last Updated:	23/05/2021
+; Last Updated:	24/05/2021
 ;
 ; Modinfo:
 ; 15/05/2021:	Changed ASC_TO_HEX to ASC_TO_NUMBER; now parses decimal or hex
 ; 16/05/2021:	Added SWITCH_A
 ; 23/05/2021:	Added HLDE_TO_FPP, PRINT_BCD, NULLTOCR and CRTONULL
+; 24/05/2021:	CRTONULL now preserves BC
 
 ; Read a number and convert to binary
 ; If prefixed with &, will read as hex, otherwise decimal
@@ -79,10 +80,12 @@ UPPRC:  		AND     7FH
 
 ; Convert the buffer to a null terminated string and back
 ;	
-NULLTOCR:		LD	B, 0
+NULLTOCR:		PUSH 	BC
+			LD	B, 0
 			LD	C, CR 
 			JR	0F
-CRTONULL:		LD	B, CR
+CRTONULL:		PUSH	BC
+			LD	B, CR
 			LD	C, 0	
 0:			PUSH	HL
 1:			LD	A, (HL)
@@ -92,6 +95,7 @@ CRTONULL:		LD	B, CR
 			JR	1B
 2:			LD	(HL), C
 			POP 	HL 
+			POP	BC
 			RET
 
 ; Convert BCD to ASCII
