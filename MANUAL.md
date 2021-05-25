@@ -119,19 +119,55 @@ Examples:
 
 ## STAR commands
 
-The star commands are all prefixed with an asterisk. Numeric parameters can be specified in hexadecimal by prefixing with an '&' character.
+The star commands are all prefixed with an asterisk. These commands do not accept variables or expressions as parameters. Numeric parameters can be specified in hexadecimal by prefixing with an '&' character. Paths are unquoted.
+
+If you need to pass a parameter to a star command, call it using the OSCLI command, for example:
+
+- `LET T% = 3: OSCLI("TURBO " + STR$(T%))`
 
 ### CAT (or .)
 
 List the contents of the current directory
 
-### CD
+- `*CAT`
+
+### DIR
 
 Change the current directory; works in much the same way as a PC/Mac command line:
 
-- `*CD name` Change to the specified directory by name
-- `*CD ..` Go back up a directory
-- `*CD \` Go to the root directory
+- `*DIR name` Change to the specified directory by name
+- `*DIR ..` Go back up a directory
+- `*DIR \` Go to the root directory
+
+Aliases: CD
+
+### ERASE
+
+Erase a file
+
+- `*ERASE test.bbc` Erase the file test.bbc
+- `*ERASE *.txt` Wildcards are permitted
+
+Aliases: DELETE
+
+### MKDIR
+
+Make a directory
+
+- `*MKDIR tests` Make the folder tests
+
+### RMDIR
+
+Remove a directoy
+
+- `*RMDIR tests` Remove the folder tests
+
+### DRIVE
+
+Select the current working drive
+
+- `*DRIVE D` Change to drive D
+- `*DRIVE $` Change to the default drive
 
 ### TIME
 
@@ -142,18 +178,17 @@ The time is also available in the system variable TIME$
 ### TURBO n
 
 Will set the Next CPU turbo mode:
-- 0: 3.5Mhz
-- 1: 7Mhz
-- 2: 14Mhz
-- 3: 28Mhz
+
+- `*TURBO 0`: 3.5Mhz
+- `*TURBO 1`: 7Mhz
+- `*TURBO 2`: 14Mhz
+- `*TURBO 3`: 28Mhz
 
 ### MEMDUMP start,len
 
 List contents of memory, hexdump and ASCII.
 
-Example:
-
-`*MEMDUMP 0, 200` Dump the first 200 bytes of ROM
+- `*MEMDUMP 0, 200` Dump the first 200 bytes of ROM
 
 ### FX n
 
