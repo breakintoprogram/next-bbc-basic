@@ -1,8 +1,6 @@
 # TODO
 ### Next Jobs
 - Stub AY sound support
-- Add *DELETE to delete a saved file
-- Add *RUN to run an exsDOS dot command  
 ### Known Bugs
 - The graphics primitives (line, circle, triangle) do not clip
 - Plot modes 1-5 and Point do not work in Mode 1
@@ -12,8 +10,11 @@
 - Unable to type in COPY mode
 - Timestamp not set in saved files
 - No attempt to check whether a loaded file will fit in memory
+### Fixed Bugs / New Features
+#### Version 0.07
+- Add *DELETE, *MKDIR, *RMDIR and *DRIVE  
 - Errors in exsDOS are generic, need to be more specific
-### Fixed Bugs:
+- Errors in exsDOS when saving lower clock speeds on MiSTer
 #### Version 0.06
 - Scrolling in Mode 1 fills with black rather than the background colour
 - SAVE, LOAD and CHAIN commands now implemented
