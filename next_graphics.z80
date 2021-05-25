@@ -3,7 +3,7 @@
 ;		Spectrum Next Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	06/05/2021
-; Last Updated:	22/05/2021
+; Last Updated:	25/05/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Added Plot modes for Plot_ULA.
@@ -16,6 +16,7 @@
 ; 18/05/2021:	Draw_Line now uses a callback to plot points
 ; 20/05/2021:	Added Plot_Triangle
 ; 22/05/2021:	Added Point
+; 25/05/2021:	Reference to CALL_IY changed to CALLREG IY
 
 			MODULE	NEXT_GRAPHICS 
 
@@ -437,7 +438,7 @@ Primitive_Line_Q2:	LD	B,  H			; B = YL (loop counter)
 Primitive_Line_P:	PUSH	DE 			; Push DE
 			EXX 				; Into the alternate registers
 			POP	DE			; Plot the point
-			CALL_IY				; Call the plot routine
+			CALLREG	IY				; Call the plot routine
 			EXX
 			RET
 
