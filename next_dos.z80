@@ -3,7 +3,7 @@
 ;		Spectrum Next DOS routines
 ; Author:	Dean Belfield
 ; Created:	06/05/2021
-; Last Updated:	24/05/2021
+; Last Updated:	25/05/2021
 ;
 ; Notes:
 ;
@@ -37,15 +37,16 @@
 ; Modinfo:
 ; 13/05/2021:	Switched to using EXSDOS calls via RST 08
 ; 23/05/2021:	Added CD and LS
-; 24/05/2021:	Added LOAD and SAVE
+; 24/05/2021:	Added Load and Save
+; 25/05/2021:	Added Delete, MKDIR, RMDIR, DRIVE, Writes done at 28Mhz, error codes
 
 			MODULE	NEXT_DOS
 
 m_dosversion		EQU	0x88
 m_getsetdrv		EQU	0x89
-m_gethandle		EQU     0x8D 		
-m_p3dos			EQU     0x94		
-m_errh			EQU     0x95			
+m_gethandle		EQU     0x8D 
+m_geterr		EQU     0x93			
+m_p3dos			EQU     0x94				
 
 f_open			EQU	0x9A
 f_close                 EQU     0x9B
@@ -61,10 +62,59 @@ f_seekdir		EQU	0xA6
 f_rewinddir		EQU	0xA7
 f_getcwd		EQU	0xA8
 f_chdir			EQU	0xA9
+f_mkdir			EQU	0xAA	
+f_rmdir			EQU	0xAB
+f_stat			EQU	0xAC
+f_unlink		EQU	0xAD
 
 fa_read			EQU	0x01
 fa_append		EQU	0x06
 fa_overwrite		EQU	0x0E
+
+; Delete a file
+;  A: Drive
+; IX: Pointer to path
+;
+Delete:			NEXTREG	0x07, 3			; Boost the CPU speed
+			CALLESX	f_unlink
+			JP	C, Error
+Restore_CPU:		LD	A, (CPU_SPEED)		; Restore CPU speed
+			NEXTREG	0x07, A
+			RET 
+
+; Make directory
+;  A: Drive
+; IX: Pointer to path
+;
+MKDIR:			NEXTREG	0x07, 3			; Boost the CPU speed
+			CALLESX	f_mkdir
+			JP	C, Error
+			JR	Restore_CPU 
+
+; Remove directory
+;  A: Drive
+; IX: Pointer to path
+;
+RMDIR:			NEXTREG	0x07, 3			; Boost the CPU speed
+			CALLESX	f_rmdir
+			JP	C, Error
+			JR	Restore_CPU
+
+; Change current drive
+;  A: Drive letter
+;
+DRIVE:			CP	"$"
+			JR	Z, 1F
+			SUB	'A'
+			RET	C
+			ADD	A, A 
+			ADD	A, A 
+			ADD	A, A 
+			INC	A 
+1:			LD	(FDRIVE), A
+			CALLESX	m_getsetdrv
+			JP	C, Error
+			RET
 
 ; Load a file
 ;  A: Drive
@@ -72,7 +122,8 @@ fa_overwrite		EQU	0x0E
 ; DE: Load address
 ; BC: Maximum number of bytes to load
 ;
-Load:			PUSH	BC
+Load:			NEXTREG	0x07, 3			; Boost the CPU speed
+			PUSH	BC
 			PUSH	DE
 			LD	B, 0x01			; Open for read
 			CALLESX	f_open
@@ -91,6 +142,8 @@ Load:			PUSH	BC
 Close:			PUSH	AF			; Preserve the carry flag
 			LD	A, (FH)
 			CALLESX	f_close			; Close the file
+			LD	A, (CPU_SPEED)		; Restore the CPU speed
+			NEXTREG	0x07, A
 			POP	AF
 			RET 
 
@@ -100,7 +153,8 @@ Close:			PUSH	AF			; Preserve the carry flag
 ; DE: Start address
 ; BC: Length of data to save
 ;
-Save:			PUSH	BC
+Save:			NEXTREG	0x07, 3			; Boost the CPU speed
+			PUSH	BC
 			PUSH	DE
 			LD	B, 0x06			; Open for write, error if exists
 			CALLESX	f_open
@@ -211,8 +265,33 @@ LS:			LD	IX, FBUFFER
 ; Error handlers
 ;
 Error_Close:		CALL 	Close
-Error:			XOR     A
-			CALL    EXTERR
-			DEFB    "ESXDOS Error", 0
+Error:			LD	E, A			; Store the error
+			LD	A, (CPU_SPEED)		; Restore the CPU speed
+			NEXTREG	0x07, A
+			LD	HL, Error_Codes		; Find the error
+0:			LD	A, E			
+1:			CP	(HL)
+			JR	Z, 3F			; Found it!
+			BIT	7, (HL)			; Is it the last entry?
+			JR	NZ, 3F
+2:			INC	HL
+			LD	A, (HL)
+			OR	A 
+			JR	NZ, 2B
+			INC	HL 
+			JR	0B
+3:			INC	HL
+			PUSH	HL 
+			XOR	A 
+			JP	EXTERR
+
+; Errors
+;
+Error_Codes:		DEFB	  5, "No such file or directory", 0
+			DEFB	 11, "No such drive", 0
+			DEFB	 16, "Is a directory", 0
+			DEFB	 17, "Not a directory", 0
+			DEFB	 18, "Already exists", 0
+			DEFB	255, "Error", 0
 
 			ENDMODULE
