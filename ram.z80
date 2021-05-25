@@ -6,7 +6,7 @@
 ; Author:	(C) Copyright  R.T.Russell 31-12-1983
 ; Modified By:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	24/05/2021
+; Last Updated:	25/05/2021
 ;
 ; Modinfo:
 ; 02/05/2021:	Modified by Dean Belfield to assemble with SJASMPLUS
@@ -17,6 +17,7 @@
 ; 21/05/2021:	Added KEYSCAN and KEYREPEAT
 ; 23/05/2021:	Added FH and FBUFFER
 ; 24/05/2021:	FBUFFER reuses ACCS
+; 25/05/2021:	Added FDRIVE, CPU_SPEED
 
 			MODULE RAM
 
@@ -93,6 +94,8 @@ Start:			EQU 	$
 @RTC_MONTH:		DEFS 	1	
 @RTC_YEAR:		DEFS	1
 @FH:			DEFS	1		; File handle store
+@FDRIVE:		DEFS	1		; Current drive
+@CPU_SPEED:		DEFS	1
 
 Length:			EQU	$ - Start
 
