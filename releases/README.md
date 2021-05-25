@@ -9,6 +9,15 @@ Please use the nex file that ends in "_em"; this binary is assembled slightly di
 
 Also, to use file IO, you will need to copy the nex file to the img file and launch from the Next browser. The esxDOS file system is not initialised properly if the nex file is dragged into the emulator or loaded using Smart Load.
 
+##### 20210525: Version 0.07
+- Second drives can now be accessed with *DRIVE command
+- Added *MKDIR, *RMDIR, *DELETE
+- Added *LOAD, *SAVE for loading and saving memory blocks
+- Added the alias *DIR for *CD
+- Added the alias *ERASE for *DELETE
+- Now shifts automatically to TURBO 3 when doing DOS writes
+- Meaningful DOS error messages
+
 ##### 20210524: Version 0.06
 - Added disk operations LOAD, CHAIN and SAVE
 
