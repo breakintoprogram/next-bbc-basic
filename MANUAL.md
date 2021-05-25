@@ -119,7 +119,7 @@ Examples:
 
 ## STAR commands
 
-The star commands are all prefixed with an asterisk. These commands do not accept variables or expressions as parameters. Numeric parameters can be specified in hexadecimal by prefixing with an '&' character. Paths are unquoted.
+The star commands are all prefixed with an asterisk. These commands do not accept variables or expressions as parameters. Parameters are separated by spaces. Numeric parameters can be specified in hexadecimal by prefixing with an '&' character. Paths are unquoted. 
 
 If you need to pass a parameter to a star command, call it using the OSCLI command, for example:
 
@@ -168,6 +168,18 @@ Select the current working drive
 
 - `*DRIVE D` Change to drive D
 - `*DRIVE $` Change to the default drive
+
+### LOAD
+
+Load a block of memory in
+
+- `*LOAD SCREEN.SCR 16384` Load file SCREEN.SCR to address 168384
+
+### SAVE
+
+Save a block of memory out
+
+- `*SAVE SCREEN.SCR 16384 6912` Save the screen out to file SCREEN.SCR
 
 ### TIME
 
