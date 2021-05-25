@@ -3,7 +3,7 @@
 ;		Patch file for Spectrum Next
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	24/05/2021
+; Last Updated:	25/05/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Fixed plot mode and bug in COMDS table
@@ -15,6 +15,7 @@
 ; 22/05/2021:	Fixed bugs in DRAW and OSKEY; Minor optimisations
 ; 23/05/2021:	Implemented *. and *CD 
 ; 24/05/2021:	Implemented OSLOAD and OSSAVE
+; 25/05/2021:	Implemented more file IO commands
 
 			MODULE PATCH
 
@@ -211,32 +212,64 @@ HUH:    		LD      A,254
 ;
 COMDS:  		DC	'CAT':		DEFW STAR_DOT		; Catalogue SD Card
 			DC	'CD':		DEFW STAR_CD		; Change directory
+			DC	'DELETE':	DEFW STAR_DELETE	; Delete a file
+			DC	'DIR':		DEFW STAR_CD 		; Alias for CD
+			DC	'DRIVE':	DEFW STAR_DRIVE		; Change drive
+			DC	'ERASE':	DEFW STAR_DELETE	; Alias for DELETE
 			DC	'FX':		DEFW STAR_FX		; FX commands
+			DC	'LOAD':		DEFW STAR_LOAD		; Load memory block
 			DC	'MEMDUMP': 	DEFW STAR_MEMDUMP	; Memory hex dump
+			DC	'MKDIR':	DEFW STAR_MKDIR		; Make directory
+			DC	'RMDIR':	DEFW STAR_RMDIR		; Remove directory
+			DC	'SAVE':		DEFW STAR_SAVE		; Save memory block
 			DC	'TEST': 	DEFW STAR_TEST		; Test code call for debugging new functions
-			DC	'TIME': 	DEFW STAR_TIME
+			DC	'TIME': 	DEFW STAR_TIME		; RTC time
 			DC	'TURBO':	DEFW STAR_TURBO		; CPU speed
 			DB	0xFF
 
 ; OSCLI - *CAT / *.
 ;
 STAR_DOT:		PUSH	IY
-			LD	A, 16
+			LD	A, (FDRIVE)
 			CALL	NEXT_DOS.LS
 			POP	IY
 			RET 
 
-; OSCLI - *CD
+; OSCLI - *CD path
 ;
-STAR_CD:		CALL	SKIPSP
+STAR_CD:		LD	DE, NEXT_DOS.CD
+STAR_CD_1:		CALL	SKIPSP
 			PUSH	HL
 			CALL	CRTONULL
-			PUSH	HL 
-			POP	IX 
-			LD	A, 16
-			CALL	NEXT_DOS.CD 
+			EXREG 	HL, IX
+			LD	A, (FDRIVE)
+			EX	DE, HL
+			CALLREG	HL
 			POP	HL
 			JP	NULLTOCR
+
+; OSCLI - DELETE path
+;
+STAR_DELETE:		LD	DE, NEXT_DOS.Delete
+			JR	STAR_CD_1
+
+; OSCLI - MKDIR path
+;
+STAR_MKDIR:		LD	DE, NEXT_DOS.MKDIR
+			JR	STAR_CD_1
+
+; OSCLI - RMDIR path
+;
+STAR_RMDIR:		LD	DE, NEXT_DOS.RMDIR
+			JR	STAR_CD_1
+
+; OSCLI - DRIVE d 
+;
+STAR_DRIVE:		CALL	SKIPSP
+			LD	A, (HL)
+			CP	CR
+			RET	Z
+			JP	NEXT_DOS.DRIVE
 
 ; OSCLI FX n
 ; 19: HSYNC
@@ -282,7 +315,44 @@ STAR_TIME:		CALL	GETIMS
 ;
 STAR_TURBO:		CALL	ASC_TO_NUMBER
 			LD	A, E 
+			AND 	3
+			LD	(CPU_SPEED), A
 			NEXTREG	0x07, A 
+			RET
+
+; OSCLI LOAD file addr
+;
+STAR_LOAD:		CALL	SKIPSP		; First parameter is a string
+			PUSH	HL		; Stack the string pointer
+			CALL	SKIPNOTSP	; Skip to the next parameter
+			CALL	ASC_TO_NUMBER	; DE: Address
+			POP	HL		; HL: Pointer to Filename
+			CALL	SPTONULL	; Convert to null terminated string
+			PUSH	HL
+			EXREG	HL, IX
+			LD	BC, -1		; Maximum number of bytes
+			LD	A, (FDRIVE)
+			CALL	NEXT_DOS.Load
+			POP	HL 
+			RET
+
+; OSCLI	SAVE file addr len
+;
+STAR_SAVE:		CALL	SKIPSP		; First parameter is a string
+			PUSH	HL		; Stack the string pointer
+			CALL	SKIPNOTSP	; Skip to the next parameter
+			CALL	ASC_TO_NUMBER	; Read address
+			PUSH	DE 
+			CALL	ASC_TO_NUMBER	; Read length
+			EXREG	DE, BC		; BC: Length
+			POP	DE 		; DE: Start address
+			POP	HL		; HL: Pointer to Filename
+			CALL	SPTONULL	; Convert to null terminated string
+			PUSH	HL
+			EXREG	HL, IX
+			LD	A, (FDRIVE)
+			CALL	NEXT_DOS.Save
+			POP	HL
 			RET
 
 ; ----------------------------------------------------------------------------
@@ -512,7 +582,7 @@ STAR_TURBO:		CALL	ASC_TO_NUMBER
 @OSLOAD:		CALL	CRTONULL
 			PUSH	HL 
 			POP	IX 
-			LD	A, 16
+			LD	A, (FDRIVE)
 			JP	NEXT_DOS.Load
 
 ;OSSAVE - Save an area of memory to a file.
@@ -524,7 +594,7 @@ STAR_TURBO:		CALL	ASC_TO_NUMBER
 @OSSAVE:		CALL	CRTONULL
 			PUSH	HL 
 			POP	IX 
-			LD	A, 16
+			LD	A, (FDRIVE)
 			JP	NEXT_DOS.Save
 
 ; ----------------------------------------------------------------------------
