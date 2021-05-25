@@ -3,7 +3,7 @@
 ;		Spectrum Next Initialisation
 ; Author:	Dean Belfield
 ; Created:	04/05/2021
-; Last Updated:	23/05/2021
+; Last Updated:	25/05/2021
 ;
 ; Modinfo:
 ; 13/05/2021:	Added BUILD_VERSION
@@ -11,6 +11,7 @@
 ; 17/05/2021:	Border colour now set in CLS
 ; 21/05/2021:	Added Initialise_RAM
 ; 23/05/2021:	Initialises page registers
+; 25/05/2021:	Initialises FDRIVE
 
 			MODULE	NEXT_INIT
 
@@ -69,6 +70,7 @@ Initialise_RAM:		LD	HL, RAM.Start
 			JR	NZ, 1B
 			LD	A, %01000111:	LD (TEXT_FOREGROUND), A
 			LD	A, %01000111:	LD (PLOT_COLOUR), A
+			LD	A, "$": 	LD (FDRIVE), A
 			RET
 
 ;
