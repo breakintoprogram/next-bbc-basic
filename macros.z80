@@ -3,11 +3,12 @@
 ;		Useful macros
 ; Author:	Dean Belfield
 ; Created:	08/05/2021
-; Last Updated:	18/05/2021
+; Last Updated:	25/05/2021
 ;
 ; Modinfo:
 ; 13/05/2021:	Added OPCODE macro for assembler (in exec.z80)
 ; 18/05/2021:	Added CALL_IX and CALL_IY
+; 25/05/2021:	Added EXEREG and CALLREG to replace CALL_HL, CALL_IX aned CALL_IY
 
 		MACRO 	Z80PORT port, value
 		LD	A, value
@@ -19,22 +20,15 @@
 		ENDIF
 		ENDM
 
-		MACRO	CALL_HL
+		MACRO	CALLREG rp 
 		PUSH	.S1 
-		JP	(HL)
-.S1:		;
+		JP	(rp)
+.S1		;
 		ENDM
 
-		MACRO	CALL_IX
-		PUSH	.S1
-		JP	(IX)
-.S1:		;
-		ENDM
-
-		MACRO	CALL_IY
-		PUSH	.S1
-		JP	(IY)
-.S1:		;
+		MACRO	EXREG rp1, rp2
+		PUSH 	rp1 
+		POP	rp2
 		ENDM
 
 		MACRO	CALLESX hook
