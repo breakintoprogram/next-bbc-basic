@@ -3,7 +3,7 @@
 ;		Patch file for Spectrum Next
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	25/05/2021
+; Last Updated:	29/05/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Fixed plot mode and bug in COMDS table
@@ -16,6 +16,7 @@
 ; 23/05/2021:	Implemented *. and *CD 
 ; 24/05/2021:	Implemented OSLOAD and OSSAVE
 ; 25/05/2021:	Implemented more file IO commands
+; 29/05/2021:	Bug fixes; Implemented *BYE
 
 			MODULE PATCH
 
@@ -210,7 +211,8 @@ HUH:    		LD      A,254
 ; Each command has bit 7 of the last character set, and is followed by the address of the handler
 ; It looks like these need to be in alphabetical order
 ;
-COMDS:  		DC	'CAT':		DEFW STAR_DOT		; Catalogue SD Card
+COMDS:  		DC	'BYE':		DEFW STAR_BYE		; Soft reset
+			DC	'CAT':		DEFW STAR_DOT		; Catalogue SD Card
 			DC	'CD':		DEFW STAR_CD		; Change directory
 			DC	'DELETE':	DEFW STAR_DELETE	; Delete a file
 			DC	'DIR':		DEFW STAR_CD 		; Alias for CD
@@ -227,7 +229,13 @@ COMDS:  		DC	'CAT':		DEFW STAR_DOT		; Catalogue SD Card
 			DC	'TURBO':	DEFW STAR_TURBO		; CPU speed
 			DB	0xFF
 
-; OSCLI - *CAT / *.
+; OSCLI - BYE
+;
+STAR_BYE:		NEXTREG	0x02, 1		; Soft reset
+			JR 	$		
+
+
+; OSCLI - CAT / *.
 ;
 STAR_DOT:		PUSH	IY
 			LD	A, (FDRIVE)
@@ -235,7 +243,7 @@ STAR_DOT:		PUSH	IY
 			POP	IY
 			RET 
 
-; OSCLI - *CD path
+; OSCLI - CD path
 ;
 STAR_CD:		LD	DE, NEXT_DOS.CD
 STAR_CD_1:		CALL	SKIPSP
@@ -285,8 +293,8 @@ STAR_FX_19:		HALT
 ; OSCLI MEMDUMP addr, count
 ; 
 STAR_MEMDUMP		CALL	ASC_TO_NUMBER	; Get start address
-			INC	HL
 			PUSH	DE 
+			CALL	SKIPSP 
 			CALL	ASC_TO_NUMBER	; Get length in DE
 			POP	HL 		; Get start address in HL
 			JP	NEXT_DEBUG.Memory_Dump
@@ -368,13 +376,13 @@ STAR_SAVE:		CALL	SKIPSP		; First parameter is a string
 			EXX
 			PUSH	HL
 			CALL    NXT		; If no third parameter passed
-			CP	','		; Can we find a comma
+			CP	","		; Can we find a comma
 			LD	A, 0		; Default value
 			JR 	NZ, 1F		; No, so skip third parameter
-			INC	IY		; Yes, so skip the comma
+			CALL	COMMA		; Yes, so skip the comma
 			CALL	EXPRI		; TYPE
 			EXX
-			LD	A,L		;  A = TYPE
+			LD	A, L		;  A = TYPE
 1:			POP	HL		;  L = DATA
 			POP	BC		; BC = PORT/REGISTER
 			OR	A 
@@ -382,13 +390,11 @@ STAR_SAVE:		CALL	SKIPSP		; First parameter is a string
 			DEC	A 
 			JR	Z, 3F
 			JP	XEQ		; TODO: Error here
-2:			OUT     (C),L           ; OUTPUT TO PORT BC
+2:			OUT     (C), L          ; OUTPUT TO PORT BC
 			JP      XEQ
-3:			LD	A,C		; Get register value TODO: Error if B is not zero
-			LD	BC,0x243B	; Set Next register number
-			OUT	(C),A 
+3:			Z80PORT	0x243B, C	; Nextreg port
 			INC	B
-			OUT	(C),L
+			OUT	(C), L
 			JP	XEQ
 
 ; GET(port[,type])
@@ -399,19 +405,17 @@ STAR_SAVE:		CALL	SKIPSP		; First parameter is a string
 			EXX
 			PUSH	HL
 			CALL	NXT
-			CP	','
+			CP	","
 			LD	A, 0		; Default type
-			JR	NZ,1F
-			INC	IY		; Skip comma
+			JR	NZ, 1F
+			CALL	COMMA		; Skip comma
 			CALL	EXPRI		; Type
 			EXX
 			LD	A, L		;  A = TYPE
 1:			POP	BC		; BC = PORT/REGISTER
 			OR	A 
 			JR	Z, 2F 		; If zero, skip to plain Z80 fetch
-			LD 	A,C		; Get register value in A
-			LD	BC,0x243B	; Nextreg port
-			OUT	(C),A		; Select register from Next to read
+			Z80PORT	0x243B, C	; Nextreg port
 			INC	B
 2:			IN	L,(C)		; Read value
 			CALL    BRAKET
@@ -433,39 +437,33 @@ STAR_SAVE:		CALL	SKIPSP		; First parameter is a string
 			EXX
 			PUSH	HL
 			CALL	NXT 
-			CP	','
-			LD	A, 0		; Default type
+			CP	","
+			LD	L, 0		; Default type
 			JR	NZ,1F
-			INC	IY		; Skip comma
+			CALL	COMMA		; Skip comma
 			CALL	EXPRI		; Type
 			EXX
-			LD	A, L		;  A: Type
 1:			POP	BC		;  C: Colour
-			LD	B, A		;  B: Type
+			LD	B, L		;  B: Type
 			CALL	NEXT_GRAPHICS.Set_Text_Colour
 			JP	XEQ 
 
 ; GCOL mode,colour[,type]
 ; As COLOUR
 ;
-@GCOL:			CALL	EXPRI		; Get the mode
-			EXX
-			LD	A, L
-			LD	(PLOT_MODE), A 	; Store
-			CALL	COMMA
-			CALL	EXPRI		; Get the colour
-			EXX 
-			PUSH	HL
-			CALL	NXT 
-			CP	','
-			LD	A, 0		; Default type
+@GCOL:			CALL	EXPR_P2		; DE: mode, HL: colour
+			LD	A, E 
+			LD	(PLOT_MODE), A 
+			PUSH	HL		; Stack the colour
+			CALL	NXT 		; Is there a type parameter?
+			CP	","
+			LD	L, 0		; Default type
 			JR	NZ,1F
-			INC	IY		; Skip comma
+			CALL	COMMA		; Skip comma
 			CALL	EXPRI		; Type
 			EXX
-			LD	A, L		;  A: Type
 1:			POP	BC		;  C: Colour
-			LD	B, A		;  B: Type
+			LD	B, L		;  B: Type
 			CALL	NEXT_GRAPHICS.Set_Plot_Colour
 			JP	XEQ 
 
@@ -475,100 +473,67 @@ STAR_SAVE:		CALL	SKIPSP		; First parameter is a string
 			EXX
 			PUSH	HL	
 			CALL	COMMA 
-			CALL	EXPRI		; Get X
-			EXX 
-			PUSH	HL		
-			CALL	COMMA 
-			CALL	EXPRI		; Get Y
-			EXX 
-			POP	DE 
+			CALL	EXPR_P2		; DE: X, HL: Y
 			POP	BC		; Plot type in C
 			LD	A, C 		; Plot type in A
 			PUSH	HL		; Y
 			PUSH	DE		; X
 			CALL	NEXT_GRAPHICS.Plot
-			POP	DE 		
+@PLOT_1:		POP	DE 		
 			POP	HL	
-@PLOT_1:		LD	BC, (PLOTPOS_X)	; Store the previous plot points
+			CALL	MOVE_1
+1:			JP	XEQ
+
+; MOVE x, y
+;
+@MOVE:			CALL	EXPR_P2		; DE: X, HL: Y
+			CALL	MOVE_1
+			JP	XEQ
+;
+@MOVE_1:		LD	BC, (PLOTPOS_X)	; Store the previous plot points
 			LD 	(PLOTPRE_X), BC 
 			LD	BC, (PLOTPOS_Y)
 			LD	(PLOTPRE_Y), BC
 			LD	(PLOTPOS_X), DE	; And store the latest plot point
 			LD	(PLOTPOS_Y), HL 
-1:			JP	XEQ
-
-; MOVE x, y
-;
-@MOVE:			CALL	EXPRI		; Get X
-			EXX 
-			PUSH	HL
-			CALL	COMMA 
-			CALL	EXPRI		; Get Y
-			EXX 
-			POP	DE		; X
-			JR	PLOT_1
+			RET
 
 ; DRAW x, y
 ;
-@DRAW:			CALL	EXPRI		; Get X2
-			EXX 
-			PUSH 	HL		; Stack it
-			CALL	COMMA 
-			CALL	EXPRI		; Get Y2
-			EXX
-			LD	A, L 		; A: Y2
-			POP	HL 		; L: X2
-			LD	H, A		; H: Y2
-			PUSH	HL 		; Stack that coordinate pair
-;
-			CALL    NXT		; If no third parameter passed
-			CP	','		; Can we find a comma
-			JR 	Z, 1F		; Yes, so fetch two more parameters
-;
-			LD	A, (PLOTPOS_X)	; No, so get defaults from PLOTPOS
-			LD	L, A 		; L: X1
-			LD	A, (PLOTPOS_Y)
-			LD	H, A 		; H: Y1 
-			PUSH	HL		; Stackit
-			JR	2F		; Jump to plot
-;
-1:			INC	IY		; Skip the comma
-			CALL	EXPRI		; Get Y1
-			EXX 
-			PUSH 	HL		; Stack it
-			CALL	COMMA 
-			CALL	EXPRI		; Get Y1
-			EXX
-			LD	A, L 		; A: Y1
-			POP	HL 		; L: X1
-			LD	H, A		; H: Y1
-			EX	(SP), HL 	; Swap this with the first pair
-			PUSH	HL		; of coordinates on the stack
-;
-2:			POP	DE 		; Pop (X1,Y1)
-			POP	HL		; Pop (X2,Y2)
-			PUSH	HL
-			CALL	NEXT_GRAPHICS.Draw
-			POP	HL
-			LD	E, L 		; XL
-			LD	L, H		; YL
-			LD	D, 0		; Clear top bytes
-			LD	H, D		
-			JP	PLOT_1
+@DRAW:			CALL	EXPR_P2		; DE: X, HL: Y
+			CALL	NXT 		; Are there any more paramters?
+			CP	","		
+			JR	NZ, 1F		; No, so just do 'DRAW x, y'
+			CALL	COMMA		; Okay, we're now doing 'DRAW x1,y1,x2,y2
+			CALL	MOVE_1		; MOVE x1,y1 (DE, HL)
+			CALL	EXPR_P2		; DE: X2, HL: Y2
+1:			PUSH	HL 		; Stack X2
+			PUSH	DE		; Stack Y2
+			CALL	NEXT_GRAPHICS.Plot_Line
+			JR	PLOT_1	
 
 ; POINT(x,y)
 ;
-@POINT:			CALL	EXPRI		; Get X coordinate	
-			EXX
-			PUSH	HL
-			CALL	COMMA 
-			CALL	EXPRI		; Get Y coordinate
-			EXX
-			POP	DE		; HL = Y, DE = X
+@POINT:			CALL	EXPR_P2		; DE: X, HL: Y
 			CALL	NEXT_GRAPHICS.Point
 			LD	L, A
 1:			CALL	BRAKET
 			JP      EVAL.COUNT0
+
+; Get two values from EXPR in DE, HL
+; IY: Pointer to expression string
+; Returns:
+; DE: P1
+; HL: P2
+;
+@EXPR_P2:		CALL	EXPRI		; Get first parameter	
+			EXX
+			PUSH	HL
+			CALL	COMMA 
+			CALL	EXPRI		; Get second parameter
+			EXX
+			POP	DE
+			RET
 
 ; ----------------------------------------------------------------------------
 
