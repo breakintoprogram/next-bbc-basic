@@ -2,10 +2,10 @@
 ; Title:	BBC Basic for Spectrum Next - Main build file
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	24/05/2021
+; Last Updated:	28/05/2021
 ;
 ; Notes:
-; To start CSpect, use the following command line (Mac)
+; To start in CSpect, use the following command line (Mac)
 ; > mono CSpect.exe -w4 -basickeys -zxnext -nextrom -tv -16bit -s28 -remote -mmc=cspect-next-2gb.img
 ;
 ; Modinfo:
@@ -15,17 +15,18 @@
 ; 18/05/2021:	Moved editor functions to editor.z80
 ; 21/05/2021:	Addd a configuration section
 ; 24/05/2021:	Moved Code_Start down to 0x5B00 (after ULA screen RAM)
+; 28/05/2021:	Added next_cursor.z80
 
 			SLDOPT COMMENT WPMEM, LOGPOINT, ASSERTION
 			
 			DEVICE ZXSPECTRUMNEXT		; sjasmplus directive for SAVESNA at end
 
-			DEFINE BUILD_VERSION "0.06"	; Build version
+			DEFINE BUILD_VERSION "0.08"	; Build version
 ;	
 ; Assembly flags
 ;
 BUILD_ROM		EQU	0			; Set to 1 to build a ROM image
-BUILD_EMULATOR		EQU	1			; Set to 1 to build for ZEsarUX; adds various bodges in
+BUILD_EMULATOR		EQU	0			; Set to 1 to build for ZEsarUX; adds various bodges in
 BUILD_Z80N		EQU	1			; Set to 1 to use Z80N optimized code in R.T.Russell's code
 BUILD_OPT		EQU	1			; Set to 1 to use misc.z80 optimisations in R.T.Russell's code
 ;
@@ -60,6 +61,7 @@ Code_Start		EQU	0x5B00			; Code straight after screen RAM
 			include "next_init.z80"		; Spectrum Next initialisation
 			include "next_dos.z80"		; File I/O
 			include "next_debug.z80"	; Debug routines
+			include	"next_cursor.z80"	; Cursor routines
 			include "next_io.z80"		; Screen and keyboard I/O
 			include "next_graphics.z80"	; Bitmap graphics 
 			include "next_dma.z80"		; Spectrum Next DMA routines
@@ -82,7 +84,7 @@ Code_Start		EQU	0x5B00			; Code straight after screen RAM
 
 			ALIGN 	256			; USER needs to be alignd to a page boundary
 
-@USER:;			incbin "examples/animal.bbc"	; BASIC program to load into memory
+@USER:			incbin "tests/cube.bbc"		; BASIC program to load into memory
 
 	 		SAVENEX OPEN "Z80/BBC Basic/build.nex", Code_Start, Stack_Top
 			SAVENEX CORE 3, 0, 0
