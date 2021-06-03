@@ -3,7 +3,7 @@
 ;		Spectrum Next ULA Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	13/05/2021
-; Last Updated:	22/05/2021
+; Last Updated:	28/05/2021
 ;
 ; Modinfo:
 ; 15/05/2021:	Plot now pulls PLOT_MODE and PLOT_COLOUR direct from RAM; Updates for MODE command
@@ -11,16 +11,32 @@
 ; 19/05/2021:	Fixed bug in Get_Char
 ; 20/05/2021:	Added Draw_Horz_Line; Fixed bug in Set_Attr
 ; 22/05/2021:	Added Point; Minor optimisations
+; 26/05/2021:	Added support code for Layer 2 modes 2 and 3
+; 28/05/2021:	Removed Display_Cursor
 
 			MODULE	NEXT_GRAPHICS_ULA
 
 ; Set the video mode up
 ;
-Set_Video_Mode:		NEXTREG 0x15, %00101001		; Enable sprites & clipping, SUL priority
-			LD	A, %01000111
+Set_Video_Mode:		LD	A, %01000111
 			LD	(TEXT_FOREGROUND), A 
 			LD	(PLOT_COLOUR), A
-			RET
+			LD	A, 32
+			LD	(CHAR_COLS), A 
+			LD	A, 24
+			LD	(CHAR_ROWS), A
+			LD	BC, 256
+			LD	(PIXEL_WIDTH), BC 
+			LD	BC, 192 
+			LD	(PIXEL_HEIGHT), BC
+			CALL	NEXT_GRAPHICS.Clear_Screen
+			NEXTREG 0x15, %00101001		; Enable sprites & clipping, SUL priority
+			NEXTREG	0x70, %00000000		; Reset Layer 2 resolution
+			NEXTREG	0x18, 0		
+			NEXTREG	0x18, 255
+			NEXTREG	0x18, 0
+			NEXTREG	0x18, 191		; Resetting Layer 2clipping
+			RET	
 
 ; Clear the screen
 ;
@@ -46,54 +62,6 @@ Set_Scroll_Reg:		LD	A, (SCRLPOS_Y)
 			ADD	A, A
 			ADD	A, A 
 			NEXTREG	ULA_Y_SCROLL, A 
-
-; Clear a line
-;  H: Line to clear
-;
-Clear_Line:		LD 	L, 0
-			CALL	NEXT_IO.Get_Charpos_1
-			CALL	Get_Char_Address
-			PUSH	HL
-			XOR	A
-			LD	C, 8
-1:			LD	B, 32
-			PUSH	HL			
-2:			LD	(HL), A 
-			INC	L 
-			DJNZ	2B
-			POP	HL
-			INC	H 
-			DEC	C 
-			JR	NZ, 1B
-			POP	HL 
-			LD	A, H 
-			RRA
-			RRA 
-			RRA 
-			AND 	3 
-			OR	88
-			LD	H, A 
-			LD	B,32 
-			LD	A, (TEXT_FOREGROUND)
-3:			LD	(HL), A 
-			INC	L 
-			DJNZ	3B
-			RET 
-
-; Display a cursor at an X/Y position
-;  L: X coordinate
-;  H: Y coordinate
-;  E: Style
-;     0: Off
-;     1: On
-;
-Display_Cursor:		CALL	Get_Attr_Address
-			LD	A, E 
-			CP	0
-			LD	A, (TEXT_FOREGROUND)
-			JR	Z, 1F
-			LD	A, %10111000
-1:			LD	(HL), A
 			RET
 
 ; Print a single character out to an X/Y position
@@ -198,19 +166,20 @@ Get_Attr_Address:	PUSH	DE
 			RET
 
 ; Read a point
-;  E: X
-;  D: Y
+; HL: X
+; DE: Y
 ;	
-Point:			PIXELAD			; Get the pixel address in HL
-			SETAE			; Get pixel position in A
-			AND	(HL)		; Mask out pixel
+Point:			LD	D, L			; D: Y Coordinate
+			PIXELAD				; Get the pixel address in HL
+			SETAE				; Get pixel position in A
+			AND	(HL)			; Mask out pixel
 			RET	Z 
 			LD	A, 1
 			RET 
 			
 ; Plot a point
-;  E: X
-;  D: Y
+; HL: Y
+; DE: X
 ;	
 Plot:			LD	A, (PLOT_MODE)		; Check plot mode is valid
 			CP	7
@@ -219,7 +188,7 @@ Plot:			LD	A, (PLOT_MODE)		; Check plot mode is valid
 			ADD	A, A
 			ADD	A, A 
 			ADD	A, A 			; Multiply by 8
-			ADD	A, D 			; Add to pixel Y position
+			ADD	A, L 			; Add to pixel Y position
 			JR	C, 0F 			; If we've wrapped, then skip
 			CP	192			; Gone off screen?
 			JR	C, 1F 
@@ -271,11 +240,14 @@ Plot_Attribute:		LD	A, H 			; Get the attribute address from the screen address
 			RET
 
 ; Draw Horizontal Line routine
-;  D: Y coordinate
-;  E: X pixel position 1
-;  B: X pixel position 2
+; HL: Y coordinate
+; BC: X pixel position 1
+; DE: X pixel position 2
 ;
-Draw_Horz_Line:		LD	A, B			; Check if E (X1) > B (X2)
+Draw_Horz_Line:		LD	B, C 			; B: Low X1, E: Low X2
+			LD	D, L 			; D: Low Y
+;
+			LD	A, B			; Check if E (X1) > B (X2)
 			CP	E 
 			JR	NC,0F
 			LD 	B, E			; Swap B and D

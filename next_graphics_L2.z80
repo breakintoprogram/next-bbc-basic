@@ -3,7 +3,7 @@
 ;		Spectrum Next Layer 2 Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	13/05/2021
-; Last Updated:	24/05/2021
+; Last Updated:	26/05/2021
 ;
 ; TODO:		L2 will read read/write access to the screen for any plot operation other than SET
 ;
@@ -14,36 +14,88 @@
 ; 20/05/2021:	Added Draw_Horz_Line
 ; 22/05/2021:	Added Point
 ; 24/05/2021:	Clear_Line now uses the background colour
+; 26/05/2021:	Added support code for Layer 2 modes 2 and 3
 
 			MODULE	NEXT_GRAPHICS_L2
 
-; Set the video mode up
+; Set the video modes up
 ;
-Set_Video_Mode:		NEXTREG 0x15, %00100001		; Enable sprites & clipping, SLU priority
+Set_Video_Mode_M1:	LD	A, %00000000		; 256 x 192 x 8
+			LD	E, %00100011		; Sprites & clipping, SLU priority
+			LD	C, 32 
+			LD	B, 24 
+			LD	D, 191
+			JR	Set_Video_Mode
+;
+Set_Video_Mode_M2:	LD	A, %00010000		; 320 x 256 x 8
+			LD	E, %00100011		; Sprites & clipping, SLU priority
+			LD	C, 40
+			LD	B, 32
+			LD	D, 255
+			JR	Set_Video_Mode
+;
+Set_Video_Mode_M3:	LD	A, %00010000		; 640 x 256 x 4
+			LD	E, %00100011		; Sprites, no clipping, SLU priority
+			LD	C, 40
+			LD	B, 32
+			LD	D, 255
+;
+Set_Video_Mode:		PUSH	AF, BC, DE
 			XOR	A
 			LD	(TEXT_BACKGROUND), A
 			DEC	A
 			LD	(TEXT_FOREGROUND), A 
 			LD	(PLOT_COLOUR), A
+			LD	(CHAR_COLS), BC
+			LD	H, 0
+			LD	L, C 
+			ADD	HL, HL 
+			ADD	HL, HL 
+			ADD	HL, HL
+			LD	(PIXEL_WIDTH), HL 
+			LD	H, 0
+			LD	L, B
+			ADD	HL, HL 
+			ADD	HL, HL 
+			ADD	HL, HL
+			LD	(PIXEL_HEIGHT), HL
+			CALL	NEXT_GRAPHICS.Clear_Screen
+			POP	DE, BC, AF
+			NEXTREG 0x70, A
+			LD	A, E
+			NEXTREG 0x15, A		
+			LD	A, D			; Set clipping
+			NEXTREG	0x18, 0		
+			NEXTREG	0x18, 255
+			NEXTREG	0x18, 0
+			NEXTREG	0x18, A
 			RET
+
 
 ; Clear the screen
 ;
+Clear_Screen_M1:	LD	B, 3 
+			JR	Clear_Screen 
+;
+Clear_Screen_M2:
+Clear_Screen_M3:	LD	B, 5
+;
 Clear_Screen:		LD	A, (BORDER_COLOUR)
 			OUT 	(254), A
-			LD	C, %00000011
-			CALL 	1F
-			LD	C, %01000011
-			CALL 	1F
-			LD	C, %10000011
-1:			LD	A,C
-			LD	BC, 0x123B
-			OUT	(C),A
+			NEXTREG	0x17, 0			; Scroll register
+			Z80PORT	0x123B, %00000011	; Enable for memory writes
+1:			PUSH	BC
+			LD	A, B 
+			DEC	A 
+			OR	%00010000		; Set to page relative to current page
+			Z80PRTA	0x123B
 			LD	A, (TEXT_BACKGROUND)
 			LD	DE,0x0000
 			LD	BC,0x4000
 			CALL	NEXT_DMA.FillDMA
-			NEXTREG	0x17, 0
+			POP	BC
+			DJNZ	1B
+			Z80PORT	0x123B, %00000010	; Disable memory writes
 			RET
 
 ; Scroll
@@ -54,39 +106,72 @@ Set_Scroll_Reg:		LD	A, (SCRLPOS_Y)
 			ADD	A, A
 			ADD	A, A 
 			NEXTREG	0x17, A
-
-; Clear a line
-;  H: Line to clear
-;
-Clear_Line:		LD 	L, 0
-			CALL	NEXT_IO.Get_Charpos_1
-			CALL	Get_Char_Address
-			XOR	A 
-			LD	B, 0 
-			LD	C, 8
-			LD	A, (TEXT_BACKGROUND)
-1:			LD	(HL), A 
-			INC	HL
-			DJNZ	1B
-			DEC	C 
-			JR	NZ, 1B
-			RET
-
-; Display a cursor at an X/Y position
-;  L: X coordinate
-;  H: Y coordinate
-;  E: Style
-;     0: Off
-;     1: On
-;
-Display_Cursor:		RET
+			RET 
 
 ; Print a single character out to an X/Y position
 ;  E: Character to print
 ;  L: X Coordinate
 ;  H: Y Coordinate
 ;
-Print_Char:		CALL 	Get_Char_Address
+Print_Char_M3:		CALL	Get_Char_Address_M3
+			LD 	D, 8			; Multiply the character byte by 8
+			MUL 	D,E
+			LD 	A,0x3C			; Address of character set in ROM (HIGH)
+			ADD 	A,D
+			LD 	D,A
+			LD	BC, (TEXT_FOREGROUND)	; C: Foreground, B: Background
+			LD	A, (DE)			; Get the byte from ROM into A
+;
+			LD	D, 4 			; Inner loop counter
+1:			PUSH	DE 
+			LD	E, A 			
+			SLA	E			; Get first nibble
+			JR	C, 3F 
+			LD	D, B 
+			JR	4F
+3:			LD	D, C 
+4:			SLA	E			; Get second nibble
+			JR	C, 5F 
+			LD	A, B 
+			JR	6F
+5:			LD	A, C
+6:			SWAPNIB			
+			OR	D
+			SWAPNIB
+			LD	(HL), A
+			POP	DE
+			DEC	D 
+			JR	NZ, 1B
+			RET
+;
+Print_Char_M2:		CALL	Get_Char_Address_M2
+			LD 	D, 8			; Multiply the character byte by 8
+			MUL 	D, E
+			LD 	A, 0x3C			; Address of character set in ROM (HIGH)
+			ADD 	A, D
+			LD 	D, A
+			LD	BC, (TEXT_FOREGROUND)	; C: Foreground, B: Background
+			LD	IXH, 8			; Outer Loop counter
+1:			PUSH	HL
+			LD	A, (DE)			; Get the byte from the ROM into A
+			LD	IXL, 8			; Inner loop counter
+2:			ADD	A, A
+			JR	C, 3F
+			LD	(HL), B			; Set background colour
+			JR	4F
+3:			LD	(HL), C			; Set foreground colour
+4:			INC	H
+			DEC	IXL
+			JR	NZ, 2B
+			INC 	DE			; Goto next byte of character
+			POP	HL
+			INC	L			; Goto next line on screen
+			DEC	IXH
+			JR 	NZ, 1B			; Loop around whilst it is Not Zero (NZ)
+			Z80PORT	0x123B, %00000010	; Disable memory writes
+			RET
+;
+Print_Char_M1:		CALL 	Get_Char_Address_M1
 			LD 	D, 8			; Multiply the character byte by 8
 			MUL 	D,E
 			LD 	A,0x3C			; Address of character set in ROM (HIGH)
@@ -110,6 +195,7 @@ Print_Char:		CALL 	Get_Char_Address
 			INC	H			; Goto next line on screen
 			DEC	IXH
 			JR 	NZ,1B			; Loop around whilst it is Not Zero (NZ)
+			Z80PORT	0x123B, %00000010	; Disable memory writes
 			RET
 
 ; Gets the ASCII code of a chararcter on-screen
@@ -124,55 +210,99 @@ Get_Char:		RET
 ;  L = X character position
 ;  Returns address in HL
 ;
-Get_Char_Address:	PUSH	DE
-			EX 	DE, HL
-			SLA	D 
-			SLA 	D
-			SLA  	D 
-			SLA 	E 
-			SLA 	E 
-			SLA 	E
-			CALL	Get_Pixel_Address
-			POP	DE
+Get_Char_Address_M1:	SLA	L 			; Multiply X by 8
+			SLA	L 
+			SLA	L
+			LD	A, H 			; Multiply Y by 8		
+			RLCA 
+			RLCA 
+			RLCA 
+			LD	H, A			; Get the Y coordinate
+			AND	0xC0			; Get the bank number
+			RLCA 
+			RLCA 
+			OR	%00010000
+			Z80PRTA	0x123B
+			Z80PORT	0x123B, %00000011
+			LD	A, H
+			AND	0x3F 
+			LD	H, A
+			RET
+;
+Get_Char_Address_M3:	SRL	L 			; Divide X by 2
+Get_Char_Address_M2:	LD	A, L 			; X	
+			AND	%00111000		; Get the bank number
+			RRCA 
+			RRCA 
+			RRCA 
+			OR	%00010000
+			Z80PRTA	0x123B
+			Z80PORT	0x123B, %00000011
+			LD	A, L 			; Swap X and Y
+			LD	L, H
+			SLA	L			; Multiply Y by 8
+			SLA	L
+			SLA	L
+			ADD	A, A 			; Multiply X by 8
+			ADD	A, A
+			ADD	A, A 
+			AND	0x3F
+			LD	H, A
 			RET
 
 ; Get pixel position
 ; Pages in the correct 16K Layer 2 screen bank into 0x0000
-;  D: Y coordinate
-;  E: X coordinate
+; DE: X
+; HL: Y
 ; Returns:
 ; HL: Address in memory (between 0x0000 and 0x3FFF)
 ;
-; Trashes: A,B,C,H,L
-;
-Get_Pixel_Address:	LD 	L,E			; The low byte is the X coordinate
-			LD	A,D			; Get the Y coordinate
+Get_Pixel_Address_M1:	LD	D, L 			; Store the Y coordinate in D
+			LD 	L, E			; The low byte is the X coordinate
+			LD	A, D			; Get the Y coordinate
 			AND	0x3F			; Offset in bank
-			LD	H,A			; Store in high byte
-			LD	A,D			; Get the Y coordinate
+			LD	H, A			; Store in high byte
+			LD	A, D			; Get the Y coordinate
 			AND	0xC0			; Get the bank number
-			OR	%00000011		; Set visible/write bits
-			LD	BC,0x123B		; Port #
-			OUT	(C),A 			; Page in the screen bank
+			RLCA 
+			RLCA 
+			OR	%00010000
+			Z80PRTA	0x123B
+			Z80PORT	0x123B, %00000011
+			RET
+;
+Get_Pixel_Address_M2:	LD	A, E			; Get the X coordinate
+			AND	0x3F			; Offset in bank
+			LD	H, A			; Store in high byte
+			LD	B, 6 
+			BSRA 	DE, B 			
+			LD	A, E			; Get the X coordinate
+			OR	%00010000
+			LD	E, A
+			Z80PRTA	0x123B
+			Z80PORT	0x123B, %00000011
 			RET
 
 ; Read a point
-;  E: X
-;  D: Y
+; HL: X
+; DE: Y	
 ;	
-Point:			CALL	Get_Pixel_Address
-			LD	A, (HL)
-			RET
+Point_M1:		CALL	Get_Pixel_Address_M1: LD A, (HL): RET
+Point_M2:		CALL	Get_Pixel_Address_M1: LD A, (HL): RET
+Point_M3:		RET
 
 ; Plot a point
-;  E: X
-;  D: Y
+; HL: Y
+; DE: X
 ;	
-Plot:			
-			LD	A, (PLOT_MODE)		; Check plot mode is valid
+;
+Plot_M3:		RET
+Plot_M2:		CALL	Get_Pixel_Address_M2
+			JR	Plot
+Plot_M1:		CALL	Get_Pixel_Address_M1
+Plot:			LD	A, (PLOT_MODE)		; Check plot mode is valid
 			CP	7
 			RET	NC			; Do nothing if plot mode >=7
-			CALL	Get_Pixel_Address
 			LD	A, (PLOT_COLOUR)
 			LD	E, A
 			LD	A, (PLOT_MODE)
@@ -207,17 +337,20 @@ Plot_NOT:		LD	A, (HL)
 			RET 
 
 ; Draw Horizontal Line routine
-;  D: Y coordinate
-;  E: X pixel position 1
-;  B: X pixel position 2
+; HL: Y coordinate
+; BC: X pixel position 1
+; DE: X pixel position 2
 ;
-Draw_Horz_Line:		LD	A, B			; Check if E (X1) > B (X2)
+Draw_Horz_Line_M1:	LD	B, C 			; B: Low X1, E: Low X2
+			LD	D, L 			; D: Low Y
+;
+			LD	A, B			; Check if E (X1) > B (X2)
 			CP	E 
 			JR	NC,0F
 			LD 	B, E			; Swap B and D
 			LD 	E, A		
 0:			PUSH	BC 			; Stack colour and X2
-			CALL	Get_Pixel_Address	; Get pixel address
+			CALL	Get_Pixel_Address_M1	; Get pixel address
 			POP	BC 
 			LD	A, B 			; Calculate line length in bytes	
 			SUB 	E 
@@ -228,6 +361,37 @@ Draw_Horz_Line:		LD	A, B			; Check if E (X1) > B (X2)
 			INC	L
 			DJNZ	1B
 			RET
+;
+Draw_Horz_Line_M2:	PUSH	HL 			; Stack Y coordinate
+			LD	H, B 			; HL: X1
+			LD	L, C
+			CP16	HL, DE 			; DE: X2
+			JR	NC, 1F			; X1 - X2 is > 0
+			EX	DE, HL			; Swap them
+1:			SUB	HL, DE 			; HL: Line length
+			EX	(SP), HL 		; Swap with Y coordinate on stack
+			CALL	Get_Pixel_Address_M2
+			LD	A, (PLOT_COLOUR)
+			LD	D, A
+			POP	BC			; Restore loop counter
+			INC	BC
+2:			LD	(HL), D
+			INC	H 
+			BIT	6, H 
+			JR	Z, 3F
+			LD	H, 0			; Reset pixel pointer
+			INC	E 			; Increment to next page
+			PUSH	BC
+			Z80PORT	0x123B, E
+			Z80PORT	0x123B, %00000011
+			POP	BC
+3:			DEC	BC 
+			LD	A, B 
+			OR	C 
+			JR	NZ, 2B
+			RET 
+;
+Draw_Horz_Line_M3:	RET
 
 ; Set the graphics colour
 ;  C: Colour to set
