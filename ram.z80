@@ -6,7 +6,7 @@
 ; Author:	(C) Copyright  R.T.Russell 31-12-1983
 ; Modified By:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	25/05/2021
+; Last Updated:	28/05/2021
 ;
 ; Modinfo:
 ; 02/05/2021:	Modified by Dean Belfield to assemble with SJASMPLUS
@@ -18,6 +18,8 @@
 ; 23/05/2021:	Added FH and FBUFFER
 ; 24/05/2021:	FBUFFER reuses ACCS
 ; 25/05/2021:	Added FDRIVE, CPU_SPEED
+; 26/05/2021:	Added CHAR_COLS, CHAR_ROWS
+; 28/05/2021:	Added PIXEL_WIDTH, PIXEL_HEIGHT
 
 			MODULE RAM
 
@@ -59,10 +61,31 @@ Start:			EQU 	$
 ;
 ; Extra Next-implementation specific system variables
 ;
-@VDU_BUFFER:		EQU	BUFFER		; Storage for VDU commands
-@FBUFFER:		EQU	ACCS		; File buffer
+@VDU_BUFFER:		EQU	ACCS		; Storage for VDU commands
+@DOS_BUFFER:		EQU	ACCS		; Storage for DOS commands
 ;
-@FLAGS:			DEFS	1		; Flags: B7=ESC PRESSED, B6=ESC DISABLED, B5=CAPS LOCK, B4=COPY PRESSED
+@R00:			DEFS	1		; General purpose register stores
+@R01:			DEFS 	1		; Leave here - at top of page boundary
+@R02:			DEFS	1
+@R03:			DEFS	1
+@R04:			DEFS	1
+@R05:			DEFS 	1	
+@R06:			DEFS	1
+@R07:			DEFS	1
+@R08:			DEFS	1
+@R09:			DEFS	1
+@R10:			DEFS	1
+@R11:			DEFS	1
+@R12:			DEFS 	1
+@R13:			DEFS 	1
+@R14:			DEFS 	1
+@R15:			DEFS 	1
+@R16:			DEFS 	1
+@R17:			DEFS 	1
+@R18:			DEFS 	1
+@R19:			DEFS 	1
+;
+@FLAGS:			DEFS	1		; Flags: B7=ESC PRESSED, B6=ESC DISABLED, B5=CAPS LOCK, B4=COPY PRESSED, B3=SHOW CURSOR
 @KEYSCAN:		DEFS	2		; Results of last keyscan
 @KEYREPEAT:		DEFS	1		; Key repeat counter
 @KEYCODE:		DEFS	1		; Keycode updated by keyscan
@@ -95,7 +118,16 @@ Start:			EQU 	$
 @RTC_YEAR:		DEFS	1
 @FH:			DEFS	1		; File handle store
 @FDRIVE:		DEFS	1		; Current drive
-@CPU_SPEED:		DEFS	1
+@CPU_SPEED:		DEFS	1	
+@CHAR_COLS:		DEFS	1		; Screen dimensions (characters)
+@CHAR_ROWS:		DEFS	1
+@PIXEL_WIDTH:		DEFS	2		; Screen dimensions (pixels)
+@PIXEL_HEIGHT:		DEFS	2	
+;
+@LX1			DEFS	2		; TEMP: TODO REMOVE
+@LY1			DEFS	2
+@LX2			DEFS 	2
+@LY2			DEFS	2
 
 Length:			EQU	$ - Start
 
