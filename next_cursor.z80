@@ -1,0 +1,88 @@
+;
+; Title:	BBC Basic Interpreter - Z80 version
+;		Spectrum Next Cursor Routines
+; Author:	Dean Belfield
+; Created:	28/05/2021
+; Last Updated:	28/05/2021
+;
+; Modinfo:
+
+			MODULE	NEXT_CURSOR
+
+Sprite_Cursor:		EQU	127
+
+; Initialise the cursor pattern
+; E: Cursor width
+;
+Initialise:		Z80PORT	0x303B, Sprite_Cursor	; Select the sprite again
+			LD	C, 8
+1:			LD	B, E 
+			LD	A, 255 
+2:			Z80PRTA	0x5B
+			DJNZ 	2B 
+			LD	A, 8
+			SUB 	E 
+			LD	B, A 
+			LD	A, 0x33			; Transparent colour
+3:			Z80PRTA	0x5B
+			DJNZ	3B
+			DEC	C 
+			JR	NZ, 1B
+			LD	B, 64
+4:			Z80PRTA	0x5B
+			DJNZ	4B
+			RET
+
+Offset_XY:		LD	L, A
+			LD	H, 0
+			ADD	HL, HL
+			ADD	HL, HL
+			ADD	HL, HL
+			LD	A, (CHAR_ROWS)
+			CP	32
+			RET	Z 
+			ADD	HL, 32
+			RET
+
+Move:			LD	A, (CURSOR_X)		; Get cursor positions
+			CALL	Offset_XY
+			LD	A, L
+			LD	B, H
+			NEXTREG	0x35, A			; LSB of X
+			LD	A, (CURSOR_Y)
+			CALL	Offset_XY
+			LD	A, L
+			NEXTREG	0x36, A 		; LSB of Y
+			LD	A, B
+			AND	1
+			OR	%11110000
+			NEXTREG	0x37, A			; 7-4: Pallete, 3,2: Mirror, 1: Rotate, 0: MSB of X
+			LD	A, (FLAGS)
+			SWAPNIB
+			AND	%10000000
+			LD	L, A 
+			LD	A, (TIME)
+			ADD	A, A 
+			ADD	A, A
+			AND 	L
+			OR	%01111111
+			NEXTREG	0x38, A 		; 7: Visible, 6: Extended, 5-0: Pattern
+			NEXTREG	0x39, %10000000		; 7: 4-bit 6: Pattern, 4-1: Scaling, 0: MSB of Y
+			RET
+
+; Set cursor visibility
+; 0: Off
+; 1: On
+;
+Display:		AND	1
+			ADD	A, A 
+			ADD	A, A
+			ADD	A, A 
+			LD	B, A 
+			LD	A, (FLAGS)
+			AND	%11110111
+			OR	B
+			LD	(FLAGS), A
+			RET
+
+			ENDMODULE
