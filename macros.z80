@@ -3,15 +3,20 @@
 ;		Useful macros
 ; Author:	Dean Belfield
 ; Created:	08/05/2021
-; Last Updated:	25/05/2021
+; Last Updated:	30/05/2021
 ;
 ; Modinfo:
 ; 13/05/2021:	Added OPCODE macro for assembler (in exec.z80)
 ; 18/05/2021:	Added CALL_IX and CALL_IY
 ; 25/05/2021:	Added EXEREG and CALLREG to replace CALL_HL, CALL_IX aned CALL_IY
+; 30/05/2021:	Added CP16, NEG16
 
 		MACRO 	Z80PORT port, value
 		LD	A, value
+		Z80PRTA	port
+		ENDM
+
+		MACRO	Z80PRTA port
 		IF	port > 255
 		LD	BC, port
 		OUT	(C), A 
@@ -40,3 +45,18 @@
 		DC 	op 
 		DB 	byte
 		ENDM 
+
+		MACRO	CP16 rp1, rp2
+		OR	A 
+		SBC	rp1, rp2
+		ADD	rp1, rp2
+		ENDM 
+
+		MACRO	NEG16 rp
+		XOR	A 
+		SUB	low rp
+		LD	low rp, A 
+		SBC	A, A 
+		SUB	high rp 
+		LD	high rp, a
+		ENDM
