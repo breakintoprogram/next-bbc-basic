@@ -9,6 +9,15 @@ Please use the nex file that ends in "_em"; this binary is assembled slightly di
 
 Also, to use file IO, you will need to copy the nex file to the img file and launch from the Next browser. The esxDOS file system is not initialised properly if the nex file is dragged into the emulator or loaded using Smart Load.
 
+> From Version 0.08 I've had to stop ZEsarUX support due to incompatibility with various new featuers of the Next core. Please use CSpect.
+
+##### 20210603: Version 0.08
+- Mode 2 (320x240) now implemented
+- Cursor is now a sprite and works in all modes
+- Editor refactored to fix many bugs, including:
+	- Editor scrolls incorrectly when editing at bottom of screen
+	- Unable to type in COPY mode
+
 ##### 20210525: Version 0.07
 - Second drives can now be accessed with *DRIVE command
 - Added *MKDIR, *RMDIR, *DELETE
