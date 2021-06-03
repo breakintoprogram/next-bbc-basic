@@ -125,6 +125,10 @@ If you need to pass a parameter to a star command, call it using the OSCLI comma
 
 - `LET T% = 3: OSCLI("TURBO " + STR$(T%))`
 
+### BYE
+
+Experimental - should exit BBC Basic by doing a soft reset
+
 ### CAT (or .)
 
 List the contents of the current directory
@@ -196,11 +200,11 @@ Will set the Next CPU turbo mode:
 - `*TURBO 2`: 14Mhz
 - `*TURBO 3`: 28Mhz
 
-### MEMDUMP start,len
+### MEMDUMP start len
 
 List contents of memory, hexdump and ASCII.
 
-- `*MEMDUMP 0, 200` Dump the first 200 bytes of ROM
+- `*MEMDUMP 0 200` Dump the first 200 bytes of ROM
 
 ### FX n
 
