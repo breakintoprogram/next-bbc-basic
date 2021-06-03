@@ -3,7 +3,7 @@
 ;		Spectrum Next I/O Routines
 ; Author:	Dean Belfield
 ; Created:	03/05/2021
-; Last Updated:	21/05/2021
+; Last Updated:	26/05/2021
 ;
 ; Modinfo:
 ; 10/05/2021:	Started implementing VDU engine
@@ -16,6 +16,7 @@
 ; 19/05/2021:	Added LF and VT on Shift 6 and 7 in Read_Keyboard and COPY on Shift 1
 ; 20/05/2021:	Print_Char now preserves IX
 ; 21/05/2021:	Fixed debounce for EDIT and CAPS LOCK and added key repeat
+; 26/05/2021:	Added support code for Layer 2 modes 2 and 3
 
 			MODULE	NEXT_IO
 
@@ -125,11 +126,13 @@ Toggle_Flags:		LD	A, (FLAGS)		; Toggle Caps Lock bit in flags
 ;
 Get_Charpos		LD	HL, (CHARPOS_X)
 Get_Charpos_1:		PUSH	AF
-			LD	A,(SCRLPOS_Y)
+			LD	A, (CHAR_ROWS)
+			LD	B, A
+			LD	A, (SCRLPOS_Y)
 			ADD	A, H 
-			CP	24
+			CP	B
 			JR	C, 1F 
-			SUB	24
+			SUB	B
 1:			LD	H, A
 			POP	AF
 			RET
@@ -232,28 +235,38 @@ VDU_NUL:		RET
 ; 
 VDU_BS:			LD	A, (CHARPOS_X)
 			OR	A
-			RET	Z
+			JR	Z, 1F
 			DEC	A 
 			LD	(CHARPOS_X), A 
 			RET 
+1:			LD	A, (CHAR_COLS)
+			DEC	A 
+			LD	(CHARPOS_X), A 
+			JR	VDU_VT
+
 
 ; &09: HT  - Advance to next character
 ;
-VDU_HT:			LD	A, (CHARPOS_X)
+VDU_HT:			LD	A, (CHAR_COLS)
+			LD	B, A
+			LD	A, (CHARPOS_X)
 			INC	A
 			LD	(CHARPOS_X), A 
-			CP	32
+			CP	B
 			RET 	C 
 			CALL	VDU_CR
 
 ; &0A LF  - Linefeed
 ;
-VDU_LF:			LD	A, (CHARPOS_Y)
+VDU_LF:			LD	A, (CHAR_ROWS)
+			LD	B, A
+			LD	A, (CHARPOS_Y)
 			INC	A 
 			LD	(CHARPOS_Y), A 
-			CP	24 
+			CP	B 
 			RET 	C 
-1:			LD	A, 23
+1:			LD	A, B 
+			DEC 	A
 			LD	(CHARPOS_Y), A
 			JP 	NEXT_GRAPHICS.Scroll_Up
 
@@ -262,7 +275,8 @@ VDU_LF:			LD	A, (CHARPOS_Y)
 VDU_VT:			LD	A, (CHARPOS_Y)
 			DEC	A 
 			LD	(CHARPOS_Y), A 
-			RET 	P 
+			RLCA 
+			RET	NC 
 			XOR	A 
 			LD	(CHARPOS_Y), A 
 			JP	NEXT_GRAPHICS.Scroll_Down
