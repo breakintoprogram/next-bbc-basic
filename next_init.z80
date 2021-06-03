@@ -3,7 +3,7 @@
 ;		Spectrum Next Initialisation
 ; Author:	Dean Belfield
 ; Created:	04/05/2021
-; Last Updated:	25/05/2021
+; Last Updated:	26/05/2021
 ;
 ; Modinfo:
 ; 13/05/2021:	Added BUILD_VERSION
@@ -12,6 +12,7 @@
 ; 21/05/2021:	Added Initialise_RAM
 ; 23/05/2021:	Initialises page registers
 ; 25/05/2021:	Initialises FDRIVE
+; 26/05/2021:	Cursor now on interrupt
 
 			MODULE	NEXT_INIT
 
@@ -82,6 +83,7 @@ Interrupt:		DI
 			EX 	AF,AF'
 			PUSH	AF, BC, DE, HL, IY
 
+			CALL	NEXT_CURSOR.Move
 			CALL	NEXT_IO.Read_Keyboard
 			LD	(KEYCODE), A
 
