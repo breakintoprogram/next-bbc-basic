@@ -55,10 +55,11 @@ Draw a circle
 
 ### MODE n
 
-Two modes supported:
+Three modes supported:
 
 - `MODE 0` ULA mode (Normal Spectrum 256x192 Graphics)
 - `MODE 1` Layer 2 mode (256 x 192, 256 colours per pixel)
+- `MODE 2` Layer 2 mode (320 x 256, 256 colours per pixel)
 
 ### COLOUR n[,type]
 
