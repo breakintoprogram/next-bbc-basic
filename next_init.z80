@@ -3,7 +3,7 @@
 ;		Spectrum Next Initialisation
 ; Author:	Dean Belfield
 ; Created:	04/05/2021
-; Last Updated:	26/05/2021
+; Last Updated:	04/06/2021
 ;
 ; Modinfo:
 ; 13/05/2021:	Added BUILD_VERSION
@@ -13,6 +13,7 @@
 ; 23/05/2021:	Initialises page registers
 ; 25/05/2021:	Initialises FDRIVE
 ; 26/05/2021:	Cursor now on interrupt
+; 04/06/2021:	Intitialises NEXT_SOUND
 
 			MODULE	NEXT_INIT
 
@@ -52,6 +53,7 @@ System:			DI
 
 			XOR	A			; Set the video mode
 			CALL	NEXT_GRAPHICS.Set_Video_Mode
+			CALL	NEXT_SOUND.Initialise
 			CALL    TELL
 			DEFM	"Spectrum Next Version ", BUILD_VERSION, "\n\r"
 			DEFM	"\n\r"
@@ -86,6 +88,9 @@ Interrupt:		DI
 			CALL	NEXT_CURSOR.Move
 			CALL	NEXT_IO.Read_Keyboard
 			LD	(KEYCODE), A
+			LD	A, (TIME + 0)
+			AND	0x02
+			CALL	Z, NEXT_SOUND.Play_Queue
 
 			LD	DE, 2
 			LD	HL, (TIME + 0)
