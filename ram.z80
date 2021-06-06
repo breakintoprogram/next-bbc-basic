@@ -6,7 +6,7 @@
 ; Author:	(C) Copyright  R.T.Russell 31-12-1983
 ; Modified By:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	28/05/2021
+; Last Updated:	04/06/2021
 ;
 ; Modinfo:
 ; 02/05/2021:	Modified by Dean Belfield to assemble with SJASMPLUS
@@ -19,7 +19,8 @@
 ; 24/05/2021:	FBUFFER reuses ACCS
 ; 25/05/2021:	Added FDRIVE, CPU_SPEED
 ; 26/05/2021:	Added CHAR_COLS, CHAR_ROWS
-; 28/05/2021:	Added PIXEL_WIDTH, PIXEL_HEIGHT
+; 28/05/2021:	Added PIXEL_WIDTH, PIXEL_HEIGHT and Rnn variables
+; 04/06/2021:	Added AY buffers
 
 			MODULE RAM
 
@@ -84,6 +85,25 @@ Start:			EQU 	$
 @R17:			DEFS 	1
 @R18:			DEFS 	1
 @R19:			DEFS 	1
+;
+@AY_CNT_A:		DEFS	1 		; Duration counter for play routine
+@AY_PRD_A:		DEFS	1		; Read pointer
+@AY_PWR_A:		DEFS 	1		; Write pointer
+@AY_LEN_A:		DEFS	1		; Length
+;
+@AY_CNT_B:		DEFS	1 		
+@AY_PRD_B:		DEFS	1		
+@AY_PWR_B:		DEFS 	1		
+@AY_LEN_B:		DEFS	1
+;
+@AY_CNT_C:		DEFS	1 		
+@AY_PRD_C:		DEFS	1		
+@AY_PWR_C:		DEFS 	1		
+@AY_LEN_C:		DEFS	1	
+;
+@AY_BUF_A:		DEFS	15		; CH A: Queue 5 x [duration, volume, pitch]
+@AY_BUF_B:		DEFS	15		; CH B: Queue 5 x [duration, volume, pitch]
+@AY_BUF_C:		DEFS	15		; CH C: Queue 5 x [duration, volume, pitch]
 ;
 @FLAGS:			DEFS	1		; Flags: B7=ESC PRESSED, B6=ESC DISABLED, B5=CAPS LOCK, B4=COPY PRESSED, B3=SHOW CURSOR
 @KEYSCAN:		DEFS	2		; Results of last keyscan
