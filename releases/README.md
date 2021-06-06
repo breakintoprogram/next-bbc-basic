@@ -15,7 +15,7 @@ Also, to use file IO, you will need to copy the nex file to the img file and lau
 - Fixed clipping in line, circle and triangle graphics primitives
 - Fixed issue with negative plot coordinates
 - Fixed issue with scrolling and graphics primitives in Modes 0, 1 and 2
-- Added SOUND commandeeeee
+- Added SOUND command
 
 ##### 20210603: Version 0.08
 - Mode 2 (320x240) now implemented
