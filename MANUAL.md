@@ -118,6 +118,17 @@ Examples:
 
 `VDU 22,1` Change to Mode 1
 
+### SOUND channel,volume,pitch,duration
+
+Play a sound
+
+- channel: AY channel between 0 and 2
+- volume: 0 (off), -15 (loud)
+- pitch: Pitch in quarter-semitones, where 53 is middle C, and 89 is A440
+- duration: Duration in 25ths of a second
+
+Sounds are played asynchronously; up to 5 notes can be queued ahead. If a sixth note is added to the queue, the SOUND command will block until there is space in the queue.
+
 ## STAR commands
 
 The star commands are all prefixed with an asterisk. These commands do not accept variables or expressions as parameters. Parameters are separated by spaces. Numeric parameters can be specified in hexadecimal by prefixing with an '&' character. Paths are unquoted. 
@@ -128,7 +139,7 @@ If you need to pass a parameter to a star command, call it using the OSCLI comma
 
 ### BYE
 
-Experimental - should exit BBC Basic by doing a soft reset
+Exits BBC Basic by doing a soft reset (does not work on emulators)
 
 ### CAT (or .)
 
