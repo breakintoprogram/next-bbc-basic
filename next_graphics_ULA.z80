@@ -3,7 +3,7 @@
 ;		Spectrum Next ULA Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	13/05/2021
-; Last Updated:	28/05/2021
+; Last Updated:	04/06/2021
 ;
 ; Modinfo:
 ; 15/05/2021:	Plot now pulls PLOT_MODE and PLOT_COLOUR direct from RAM; Updates for MODE command
@@ -13,6 +13,7 @@
 ; 22/05/2021:	Added Point; Minor optimisations
 ; 26/05/2021:	Added support code for Layer 2 modes 2 and 3
 ; 28/05/2021:	Removed Display_Cursor
+; 04/06/2021:	Point and Triangle now work correctly with scroll offset
 
 			MODULE	NEXT_GRAPHICS_ULA
 
@@ -62,6 +63,23 @@ Set_Scroll_Reg:		LD	A, (SCRLPOS_Y)
 			ADD	A, A
 			ADD	A, A 
 			NEXTREG	ULA_Y_SCROLL, A 
+			RET
+
+; Adjust HL for scroll position
+; HL: Y
+; Returns:
+; HL: Y adjusted for Y 
+;
+Adjust_SCRLPOS_P:	LD	A, (SCRLPOS_Y)		; Get Y scroll position
+			ADD	A, A
+			ADD	A, A 
+			ADD	A, A 			; Multiply by 8
+			ADD	A, L 			; Add to pixel Y position
+			JR	C, 0F 			; If we've wrapped, then skip
+			CP	192			; Gone off screen?
+			JR	C, 1F
+0:			SUB	192
+1:			LD	L, A
 			RET
 
 ; Print a single character out to an X/Y position
@@ -169,7 +187,8 @@ Get_Attr_Address:	PUSH	DE
 ; HL: X
 ; DE: Y
 ;	
-Point:			LD	D, L			; D: Y Coordinate
+Point:			CALL	Adjust_SCRLPOS_P
+			LD	D, L			; D: Y Coordinate
 			PIXELAD				; Get the pixel address in HL
 			SETAE				; Get pixel position in A
 			AND	(HL)			; Mask out pixel
@@ -184,16 +203,8 @@ Point:			LD	D, L			; D: Y Coordinate
 Plot:			LD	A, (PLOT_MODE)		; Check plot mode is valid
 			CP	7
 			RET	NC			; Do nothing if plot mode >=7
-			LD	A, (SCRLPOS_Y)		; Get Y scroll position
-			ADD	A, A
-			ADD	A, A 
-			ADD	A, A 			; Multiply by 8
-			ADD	A, L 			; Add to pixel Y position
-			JR	C, 0F 			; If we've wrapped, then skip
-			CP	192			; Gone off screen?
-			JR	C, 1F 
-0:			SUB	192
-1:			LD	D, A 			; D = Y, E = X
+			CALL	Adjust_SCRLPOS_P
+1:			LD	D, L 			; D = Y, E = X
 			PIXELAD				; Get the pixel address in HL
 			SETAE				; Get pixel mask in A
 			LD	E, A 			;  E: Pixel mask
@@ -244,7 +255,9 @@ Plot_Attribute:		LD	A, H 			; Get the attribute address from the screen address
 ; BC: X pixel position 1
 ; DE: X pixel position 2
 ;
-Draw_Horz_Line:		LD	B, C 			; B: Low X1, E: Low X2
+Draw_Horz_Line:		CALL	Adjust_SCRLPOS_P
+;
+			LD	B, C 			; B: Low X1, E: Low X2
 			LD	D, L 			; D: Low Y
 ;
 			LD	A, B			; Check if E (X1) > B (X2)

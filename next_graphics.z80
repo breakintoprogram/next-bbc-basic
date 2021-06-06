@@ -1,9 +1,9 @@
 ;
 ; Title:	BBC Basic Interpreter - Z80 version
 ;		Spectrum Next Graphics Routines
-; Author:	Dean Belfield
+; Author:	eeDean Belfield
 ; Created:	06/05/2021
-; Last Updated:	03/06/2021
+; Last Updated:	04/06/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Added Plot modes for Plot_ULA.
@@ -19,6 +19,7 @@
 ; 25/05/2021:	Reference to CALL_IY changed to CALLREG IY
 ; 26/05/2021:	Added support code for Layer 2 modes 2 and 3
 ; 03/06/2021:	Removed Display_Cursor; Promoted graphics primitives to 16 bit coordinates
+; 04/06/2021:	Fixed issues with negative coords, scroll offset and clipping in line and triangle
 
 			MODULE	NEXT_GRAPHICS 
 
@@ -298,7 +299,7 @@ Primitive_Line:		PUSH	HL			; Stack Y2
 			LD	BC, (PLOTPOS_X)		; Get X1
 			SUB	HL, BC 			; Get width in HL
 			LD	BC, 1
-			JR	NC, 1F
+			JP	P, 1F
 			NEG16	HL
 			LD	BC, -1 
 1:			LD	(R00), BC 		; Horizontal line direction
@@ -308,7 +309,7 @@ Primitive_Line:		PUSH	HL			; Stack Y2
 			LD	BC, (PLOTPOS_Y)		; Get Y1
 			SUB	HL, BC 			; HL': Height
 			LD	BC, 1 
-			JR	NC, 2F
+			JP	P, 2F
 			NEG16	HL 
 			LD	BC, -1
 2:			LD	(R02), BC		; Vertical line direction
@@ -488,7 +489,45 @@ Primitive_Circle:	LD	A, L
 ; BC: X1
 ; DE: X2
 ;
-Primitive_Line_Horz:	LD	A, (VIDEO_MODE)
+Primitive_Line_Horz:	BIT 	7, H 			; Check if line off top of screen
+			RET	NZ
+			PUSH	BC			; And the bottom
+			LD	BC, (PIXEL_HEIGHT)
+			CP16	HL, BC 
+			POP	BC 
+			RET	NC
+;
+			LD	A, B 			; Check if both points are off LHS
+			AND	D 
+			RET	M 
+;
+			BIT	7, B 			; Clip the LHS of the line
+			JR	Z, 1F
+			LD	BC, 0
+;
+1:			BIT	7, D 
+			JR	Z, 2F 
+			LD	DE, 0
+;
+2:			PUSH	HL			; Clip the RHS of the line
+			XOR	A
+			LD	HL, (PIXEL_WIDTH)
+			DEC	HL
+			CP16	HL, BC 
+			JR	NC, 3F
+			LD	B, H 
+			LD	C, L
+			INC	A
+3:			CP16	HL, DE
+			JR	NC, 4F
+			LD	D, H
+			LD	E, L
+			INC	A
+4:			POP 	HL
+			DEC	A 			; Are both points off screen?
+			DEC 	A
+			RET 	Z
+			LD	A, (VIDEO_MODE)		; Draw the line
 			CALL	SWITCH_A 
 			DEFW 	NEXT_GRAPHICS_ULA.Draw_Horz_Line
 			DEFW 	NEXT_GRAPHICS_L2.Draw_Horz_Line_M1
@@ -663,7 +702,7 @@ Primitive_Triangle_I:	LD	(IX + 0) , C 		; Store X
 			LD	(IX + 1) , B
 			SUB	HL, BC 			; HL: Width
 			LD	C, 0x00
-			JR	NC, 1F
+			JP	P, 1F
 			NEG16 	HL
 			LD	C, 0x01
 1:			CP16	HL, DE 			; HL: Width - DE: Height, if NC, W > H
@@ -717,8 +756,8 @@ Primitive_Triangle_S:	LD	H, high ACCS	; D and H set to ACCS page
 			INC	L 
 			LD	H, (HL)
 			LD	L, A
-			CP16	HL, DE		; Compare them
-			RET	C		; Return if HL < DE
+			SUB	HL, DE
+			RET	M
 ;
 ; At this point we need to swap the four bytes pointed to by DE
 ; with the four points pointed to by HL

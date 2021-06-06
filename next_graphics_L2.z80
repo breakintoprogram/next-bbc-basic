@@ -3,7 +3,7 @@
 ;		Spectrum Next Layer 2 Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	13/05/2021
-; Last Updated:	26/05/2021
+; Last Updated:	04/06/2021
 ;
 ; TODO:		L2 will read read/write access to the screen for any plot operation other than SET
 ;
@@ -15,6 +15,7 @@
 ; 22/05/2021:	Added Point
 ; 24/05/2021:	Clear_Line now uses the background colour
 ; 26/05/2021:	Added support code for Layer 2 modes 2 and 3
+; 04/06/2021:	Point and Triangle now work correctly with scroll offset
 
 			MODULE	NEXT_GRAPHICS_L2
 
@@ -107,6 +108,19 @@ Set_Scroll_Reg:		LD	A, (SCRLPOS_Y)
 			ADD	A, A 
 			NEXTREG	0x17, A
 			RET 
+
+; Adjust HL for scroll position
+; HL: Y
+; Returns:
+; HL: Y adjusted for Y 
+;
+Adjust_SCRLPOS_P:	LD	A, (SCRLPOS_Y)		; Get Y scroll position
+			ADD	A, A
+			ADD	A, A 
+			ADD	A, A 			; Multiply by 8
+			ADD	A, L 			; Add to pixel Y position
+			LD	L, A			; Wraps 
+			RET
 
 ; Print a single character out to an X/Y position
 ;  E: Character to print
@@ -297,9 +311,13 @@ Point_M3:		RET
 ;	
 ;
 Plot_M3:		RET
-Plot_M2:		CALL	Get_Pixel_Address_M2
+;
+Plot_M2:		CALL	Adjust_SCRLPOS_P
+			CALL	Get_Pixel_Address_M2
 			JR	Plot
-Plot_M1:		CALL	Get_Pixel_Address_M1
+;
+Plot_M1:		CALL	NEXT_GRAPHICS.NEXT_GRAPHICS_ULA.Adjust_SCRLPOS_P
+			CALL	Get_Pixel_Address_M1
 Plot:			LD	A, (PLOT_MODE)		; Check plot mode is valid
 			CP	7
 			RET	NC			; Do nothing if plot mode >=7
@@ -341,7 +359,9 @@ Plot_NOT:		LD	A, (HL)
 ; BC: X pixel position 1
 ; DE: X pixel position 2
 ;
-Draw_Horz_Line_M1:	LD	B, C 			; B: Low X1, E: Low X2
+Draw_Horz_Line_M1:	CALL	NEXT_GRAPHICS.NEXT_GRAPHICS_ULA.Adjust_SCRLPOS_P
+;
+			LD	B, C 			; B: Low X1, E: Low X2
 			LD	D, L 			; D: Low Y
 ;
 			LD	A, B			; Check if E (X1) > B (X2)
@@ -362,7 +382,8 @@ Draw_Horz_Line_M1:	LD	B, C 			; B: Low X1, E: Low X2
 			DJNZ	1B
 			RET
 ;
-Draw_Horz_Line_M2:	PUSH	HL 			; Stack Y coordinate
+Draw_Horz_Line_M2:	CALL	Adjust_SCRLPOS_P
+			PUSH	HL 			; Stack Y coordinate
 			LD	H, B 			; HL: X1
 			LD	L, C
 			CP16	HL, DE 			; DE: X2
