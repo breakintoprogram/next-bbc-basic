@@ -1,17 +1,23 @@
 # TODO
 ### Next Jobs
-- Stub AY sound support
 ### Known Bugs / Missing Features
-- The graphics primitives (line, circle, triangle) do not clip properly
-- The graphics commands may not work correcly with a vertical scroll offset
+- Cannot COPY characters in Mode 1 or 2
 - Plot modes 1-5 and Point do not work in Mode 1
 - Cannot set RTC by assigning to TIME$
 - Timestamp not set in saved files
 - No attempt to check whether a loaded file will fit in memory
 - The DIR outputs file size in bytes; be good to have human readable units (bytes/KB/MB)
+- ESC does not appear to work whilst waiting for input in GET statement (check INKEY too)
+- Cursor going missing at bottom of screen in Mode 1 and Mode 2 (only seen on MiSTer)
+- SOUND queue loop does not check for Escape
 ### Fixed Bugs / New Features
+#### Version 0.09
+- Fixed clipping in line, circle and triangle graphics primitives
+- Fixed issue with negative plot coordinates
+- Fixed issue with scrolling and graphics primitives in Modes 0, 1 and 2
+- Added AY sound support
 #### Version 0.08
-- Mode 2 (320x240) now implemented
+- Mode 2 (320x256) now implemented
 - Cursor is now a sprite and works in all modes
 - Editor refactored to fix many bugs, including:
 	- Editor scrolls incorrectly when editing at bottom of screen
