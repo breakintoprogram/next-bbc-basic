@@ -3,7 +3,7 @@
 ;		Patch file for Spectrum Next
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	29/05/2021
+; Last Updated:	04/06/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Fixed plot mode and bug in COMDS table
@@ -17,6 +17,7 @@
 ; 24/05/2021:	Implemented OSLOAD and OSSAVE
 ; 25/05/2021:	Implemented more file IO commands
 ; 29/05/2021:	Bug fixes; Implemented *BYE
+; 04/06/2021:	Added SOUND
 
 			MODULE PATCH
 
@@ -302,7 +303,19 @@ STAR_MEMDUMP		CALL	ASC_TO_NUMBER	; Get start address
 ; OSCLI TEST
 ; Stick code to test here
 ;
-STAR_TEST:		RET
+STAR_TEST:		CALL	ASC_TO_NUMBER	; E: Channel
+			PUSH	DE
+			CALL	SKIPSP 
+			CALL	ASC_TO_NUMBER	; E: Pitch
+			PUSH	DE 
+			CALL	SKIPSP
+			CALL	ASC_TO_NUMBER	; E: Volume
+			POP	BC
+			LD	A, C 		; A: Pitch
+			POP	BC 
+			LD	D, C 		; Channel
+			CALL	NEXT_SOUND.Play_Note
+			RET
 
 
 ; OSCLI TIME
@@ -561,6 +574,28 @@ STAR_SAVE:		CALL	SKIPSP		; First parameter is a string
 			POP	IX 
 			LD	A, (FDRIVE)
 			JP	NEXT_DOS.Save
+
+; ----------------------------------------------------------------------------
+
+; SOUND channel,volume,pitch,duration
+; volume: 0 (off) to -15 (full volume)
+; pitch: 0 - 255
+; duration: -1 to 254 (duration in 20ths of a second, -1 = play forever)
+;
+@SOUND:			CALL	EXPR_P2		; DE: Channel/Control, HL: Volume
+			LD	A, L 		;  A: Volume
+			PUSH	AF 
+			PUSH	DE
+			CALL	COMMA
+			CALL	EXPR_P2		; DE: Pitch, HL: Duration
+			LD	D, E		;  D: Pitch
+			LD	E, L 		;  E: Duration
+			POP	HL 		; HL: Channel/Control
+			POP	AF
+			NEG
+			LD	C, A 		;  C: Volume
+			CALL	NEXT_SOUND.Queue_Note
+			JP	XEQ
 
 ; ----------------------------------------------------------------------------
 
