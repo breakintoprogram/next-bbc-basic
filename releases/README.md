@@ -11,6 +11,12 @@ Also, to use file IO, you will need to copy the nex file to the img file and lau
 
 > From Version 0.08 I've had to stop ZEsarUX support due to incompatibility with various new featuers of the Next core. Please use CSpect.
 
+##### 20210606: Version 0.09
+- Fixed clipping in line, circle and triangle graphics primitives
+- Fixed issue with negative plot coordinates
+- Fixed issue with scrolling and graphics primitives in Modes 0, 1 and 2
+- Added SOUND commandeeeee
+
 ##### 20210603: Version 0.08
 - Mode 2 (320x240) now implemented
 - Cursor is now a sprite and works in all modes
