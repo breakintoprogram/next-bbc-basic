@@ -1,0 +1,190 @@
+;
+; Title:	BBC Basic Interpreter - Z80 version
+;		Spectrum Next Sound Routines
+; Author:	Dean Belfield
+; Created:	28/05/2021
+; Last Updated:	06/06/2021
+;
+; Notes:
+
+; Split over 5 complete octaves, with 53 being middle C
+; * C4: 262hz
+; + A4: 440hz
+;
+;	2	3	4	5	6	7	8
+;
+; B	1	49	97	145	193	241	
+; A#	0	45	93	141	189	237	
+; A		41	89+	137	185	233	
+; G#		37	85	133	181	229	
+; G		33	81	129	177	225	
+; F#		29	77	125	173	221	
+; F		25	73	121	169	217	
+; E		21	69	117	165	213	
+; D#		17	65	113	161	209	
+; D		13	61	109	157	205	253
+; C#		9	57	105	153	201	249
+; C		5	53*	101	149	197	245
+;
+; Modinfo:
+; 06/06/2021:	Added LUA script to create note table
+
+			MODULE	NEXT_SOUND
+
+Note_Table:		LUA ALLPASS
+			for i = 0, 255 do
+				f = 440*(2^((i-89)/48))
+				v = 1773500 / (16 * f)
+				sj.add_word(math.floor(v+0.5))
+			end
+			ENDLUA
+
+Initialise:		LD	B, 0x07			; Mixer
+			LD	C, %00111000
+			CALL	Write_AY_Port
+			LD	B, 0x08			; CH A: Volume
+			LD	C, 0
+			CALL	Write_AY_Port
+			LD	B, 0x09			; CH B: Volume
+			LD	C, 0
+			CALL	Write_AY_Port
+			LD	B, 0x0A			; CH C: Volume
+			LD	C, 0
+			CALL	Write_AY_Port
+			RET 
+
+; Interrupt routine
+; IX: Address of AY block
+; +0: @AY_CNT:
+; +1: @AY_PRD:
+; +2: @AY_PWR:
+; +3: @AY_LEN:
+;
+Play_Queue		LD	IX, AY_CNT_A: LD HL, AY_BUF_A: LD D, 0: CALL Play_Queue_1
+			LD	IX, AY_CNT_B: LD HL, AY_BUF_B: LD D, 1: CALL Play_Queue_1	
+			LD	IX, AY_CNT_C: LD HL, AY_BUF_C: LD D, 2
+;
+Play_Queue_1:		LD	A, (IX + 0)		; Is counter 0?
+			OR	A
+			JR	Z, 1F			; Yes, so do nothing
+			DEC	A 			; Decrement the counter
+			LD	(IX + 0), A 
+			RET	NZ
+;
+1:			LD	A, (IX + 3)		; Length
+			OR	A 
+			JR	NZ, 2F 			; Is there something to play?
+			XOR	A			; No, so silence the channel
+			LD	E, A			; by resetting the volume
+			JR	Play_Note
+;
+2:			DEC	(IX + 3)
+			LD	A, (IX + 1)		; Read pointer
+			ADD	HL, A			; HL: Address to store data in
+			ADD	A, 3			; Advance the pointer
+			CP	15
+			JR	C, 3F 
+			SUB	15
+3:			LD	(IX + 1), A		; And store
+;
+			LD	A, (HL)			; Duration
+			INC	HL 
+			LD	E, (HL)			; Volume
+			INC	HL
+			LD	(IX + 0), A 		; Set countdown
+			LD	A, (HL)			; Pitch
+			JR	Play_Note 		; Trigger note
+
+; Queue a sound in the sound buffer
+; HL: Channel / Control
+;  D: Pitch
+;  E: Duration
+;  C: Volume
+;
+Queue_Note:		LD	A, L			; Channel number
+			ADD	A, A 			; x2
+			ADD	A, A			; x4
+			ADD	A, low @AY_CNT_A	; Index into channel data
+			LD	IXL, A 
+			LD	IXH, high @AY_CNT_A	; IX: Pointer to channel data
+;			
+0:			LD	A, (IX + 3) 		; Check length
+			CP	5			; Max 5 items in FIFO queue
+			JR	NC, 0B
+			INC	(IX + 3)		; Increment length
+;
+			LD	A, L			; Channel number
+			CALL	Get_Channel_Buffer	; HL: Channel FIFO buffer
+			LD	A, (IX + 2)		; Write pointer
+			ADD	HL, A			; HL: Address to store data in
+			ADD	A, 3			; Advance the pointer
+			CP	15
+			JR	C, 1F 
+			SUB	15
+1:			LD	(IX + 2), A		; And store
+;
+			LD	(HL), E			; Duration
+			INC	HL 
+			LD	(HL), C 		; Volume
+			INC	HL 
+			LD	(HL), D			; Pitch
+			RET 
+
+; Queue Buffers
+;  A: Channel
+; Returns;
+; HL: Channel FIFO buffer address
+;
+Get_Channel_Buffer:	LD	HL, Get_Channel_Buffer_LT
+			ADD	A, A
+			ADD	HL, A 
+			LD	A, (HL)
+			INC	HL
+			LD	H, (HL)
+			LD	L, A 
+			RET 
+Get_Channel_Buffer_LT:	DEFW	AY_BUF_A, AY_BUF_B, AY_BUF_C
+
+; Play a note
+;  A: Pitch
+;  D: Channel 
+;  E: Volume
+;
+Play_Note:		LD	BC, Note_Table		; Get pitch from Note Table
+			LD	H, 0
+			LD	L, A 
+			ADD	HL, HL
+			ADD	HL, BC 
+			LD	A, (HL)
+			INC	HL 
+			LD	H, (HL)
+			LD	L, A
+			LD	A, D			; Channel
+			ADD	A, A
+			LD	B, A			; Pitch (low byte)
+			LD	C, L 
+			EX 	AF, AF			
+			CALL	Write_AY_Port	
+			EX	AF, AF 	
+			INC	A	
+			LD	B, A
+			LD	C, H 			
+			CALL	Write_AY_Port
+			LD	A, D			; Volume
+			ADD	A, 8
+			LD	B, A
+			LD	C, E 			
+			CALL	Write_AY_Port
+			RET
+
+; Write to AY port
+;  B: Register number
+;  C: Value
+;
+Write_AY_Port:		PUSH	BC 
+			Z80PORT	0xFFFD, B
+			POP	BC 
+			Z80PORT	0xBFFD, C 
+			RET 	
+
+			ENDMODULE
