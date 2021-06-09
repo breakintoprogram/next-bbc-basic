@@ -3,7 +3,7 @@
 ;		Spectrum Next ULA Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	13/05/2021
-; Last Updated:	04/06/2021
+; Last Updated:	08/06/2021
 ;
 ; Modinfo:
 ; 15/05/2021:	Plot now pulls PLOT_MODE and PLOT_COLOUR direct from RAM; Updates for MODE command
@@ -14,6 +14,8 @@
 ; 26/05/2021:	Added support code for Layer 2 modes 2 and 3
 ; 28/05/2021:	Removed Display_Cursor
 ; 04/06/2021:	Point and Triangle now work correctly with scroll offset
+; 06/06/2021:	CLS now uses DMA
+; 08/06/2021:	Fixed default palette and reset sprite clipping
 
 			MODULE	NEXT_GRAPHICS_ULA
 
@@ -36,22 +38,26 @@ Set_Video_Mode:		LD	A, %01000111
 			NEXTREG	0x18, 0		
 			NEXTREG	0x18, 255
 			NEXTREG	0x18, 0
-			NEXTREG	0x18, 191		; Resetting Layer 2clipping
+			NEXTREG	0x18, 191		; Resetting Layer 2 clipping
+			NEXTREG	0x19, 0			; Clip Window Sprites
+			NEXTREG	0x19, 255
+			NEXTREG	0x19, 0
+			NEXTREG	0x19, 191 + 32
+			NEXTREG	0x43, %10000000 	; Change ULA first palette
 			RET	
 
 ; Clear the screen
 ;
 Clear_Screen:		LD	A, (BORDER_COLOUR)
 			OUT	(254), A
-			LD	HL,16384		; Start address of screen bitmap
-			LD	DE,16385		; Address + 1
-			LD	BC,6144			; Length of bitmap memory to clear
-			LD	(HL),0			; Set the first byte to 0
-			LDIR				; Copy this byte to the second, and so on
-			LD	BC,767			; Length of attribute memory, less one to clear
+			XOR	A
+			LD	DE, 16384
+			LD	BC, 6144
+			CALL	NEXT_DMA.FillDMA
 			LD	A, (TEXT_FOREGROUND)
-			LD	(HL),A			; Set the first byte to A
-			LDIR				; Copy this byte to the second, and so on
+			LD	DE, 22528
+			LD	BC, 768
+			CALL	NEXT_DMA.FillDMA
 			NEXTREG	ULA_Y_SCROLL, 0		; Reset scroll
 			RET
 
