@@ -1,16 +1,20 @@
 # TODO
 ### Next Jobs
 ### Known Bugs / Missing Features
+- Mode 3 (640x256)
 - Cannot COPY characters in Mode 1 or 2
-- Plot modes 1-5 and Point do not work in Mode 1
 - Cannot set RTC by assigning to TIME$
 - Timestamp not set in saved files
 - No attempt to check whether a loaded file will fit in memory
 - The DIR outputs file size in bytes; be good to have human readable units (bytes/KB/MB)
-- ESC does not appear to work whilst waiting for input in GET statement (check INKEY too)
-- Cursor going missing at bottom of screen in Mode 1 and Mode 2 (only seen on MiSTer)
-- SOUND queue loop does not check for Escape
 ### Fixed Bugs / New Features
+#### Version 0.10
+- ESC handled correctly on interrupt
+- ESC now breaks out of GET($) and SOUND command
+- Plot modes 1-5 and Point now work in Modes 1 and 2
+- Fixed disappearing cursor bug at bottom of screen in Mode 1 and Mode 2
+- Fixed default palettes in all modes
+- Fixed zero length line bug
 #### Version 0.09
 - Fixed clipping in line, circle and triangle graphics primitives
 - Fixed issue with negative plot coordinates
