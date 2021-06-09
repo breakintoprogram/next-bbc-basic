@@ -3,10 +3,10 @@
 ;		Patch file for Spectrum Next
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	04/06/2021
+; Last Updated:	08/06/2021
 ;
 ; Modinfo:
-; 09/05/2021:	Fixed plot mode and bug in COMDS table
+; 09/05/2021E:	Fixed plot mode and bug in COMDS table
 ; 10/05/2021:	Added RTC TIME$ and *TIME, moved some code into misc.z80, and changes due to VDU support
 ; 15/05/2021:	References to ASC_TO_HEX changed to ASC_TO_NUMBER in STAR commands; Updates for MODE command
 ; 17/05/2021:	Fixed bug in OSLINE; now returns 0; Added cursor to OSLINE; Added *EDIT; Tweaks for COLOUR, GCOL
@@ -18,12 +18,13 @@
 ; 25/05/2021:	Implemented more file IO commands
 ; 29/05/2021:	Bug fixes; Implemented *BYE
 ; 04/06/2021:	Added SOUND
+; 08/06/2021:	Tweaked OSLINE EQU to reflect new module name
 
 			MODULE PATCH
 
 @GETIMS:		EQU	NEXT_RTC.GET_DATE_STRING	; Get the time string from the real-time clock module
 @OSWRCH:		EQU	NEXT_IO.Print_Char		; Write a character out
-@OSLINE			EQU 	NEXT_EDITOR.Edit_Line		; Line editor
+@OSLINE			EQU 	EDITOR.Edit_Line		; Line editor
 
 ; MODE n: Set video mode
 ;
@@ -303,20 +304,27 @@ STAR_MEMDUMP		CALL	ASC_TO_NUMBER	; Get start address
 ; OSCLI TEST
 ; Stick code to test here
 ;
-STAR_TEST:		CALL	ASC_TO_NUMBER	; E: Channel
-			PUSH	DE
+STAR_TEST:		LD	DE, 960
+			LD	HL, 512
+			CALL	NEXT_GRAPHICS.Transform_Coordinates
+			RET 
+;
+			CALL	ASC_TO_NUMBER	
+			LD	A, E		 
+			PUSH	AF		; Sprite #
 			CALL	SKIPSP 
-			CALL	ASC_TO_NUMBER	; E: Pitch
-			PUSH	DE 
-			CALL	SKIPSP
-			CALL	ASC_TO_NUMBER	; E: Volume
-			POP	BC
-			LD	A, C 		; A: Pitch
-			POP	BC 
-			LD	D, C 		; Channel
-			CALL	NEXT_SOUND.Play_Note
-			RET
-
+			CALL	ASC_TO_NUMBER
+			PUSH	DE 		; X
+			CALL	SKIPSP 
+			CALL	ASC_TO_NUMBER
+			PUSH	DE		; Y
+			CALL	SKIPSP	
+			CALL	ASC_TO_NUMBER
+			LD	C, E 		; Pattern #
+			POP	HL 		; Y 
+			POP	DE 		; X
+			POP	AF		; Sprite #
+			JP	NEXT_SPRITES.Render
 
 ; OSCLI TIME
 ; Output current time
