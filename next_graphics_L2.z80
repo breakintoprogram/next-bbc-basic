@@ -3,7 +3,7 @@
 ;		Spectrum Next Layer 2 Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	13/05/2021
-; Last Updated:	04/06/2021
+; Last Updated:	07/06/2021
 ;
 ; TODO:		L2 will read read/write access to the screen for any plot operation other than SET
 ;
@@ -16,6 +16,7 @@
 ; 24/05/2021:	Clear_Line now uses the background colour
 ; 26/05/2021:	Added support code for Layer 2 modes 2 and 3
 ; 04/06/2021:	Point and Triangle now work correctly with scroll offset
+; 07/06/2021:	Plot modes 1-5 and Point now work correctly; Fixed sprite clipping window & default palette
 
 			MODULE	NEXT_GRAPHICS_L2
 
@@ -25,7 +26,7 @@ Set_Video_Mode_M1:	LD	A, %00000000		; 256 x 192 x 8
 			LD	E, %00100011		; Sprites & clipping, SLU priority
 			LD	C, 32 
 			LD	B, 24 
-			LD	D, 191
+			LD	D, 191 + 32
 			JR	Set_Video_Mode
 ;
 Set_Video_Mode_M2:	LD	A, %00010000		; 320 x 256 x 8
@@ -65,11 +66,16 @@ Set_Video_Mode:		PUSH	AF, BC, DE
 			NEXTREG 0x70, A
 			LD	A, E
 			NEXTREG 0x15, A		
-			LD	A, D			; Set clipping
-			NEXTREG	0x18, 0		
+			LD	A, D			
+			NEXTREG	0x18, 0			; Clip Window
 			NEXTREG	0x18, 255
 			NEXTREG	0x18, 0
-			NEXTREG	0x18, A
+			NEXTREG	0x18, A	
+			NEXTREG	0x19, 0			; Clip Window Sprites
+			NEXTREG	0x19, 255
+			NEXTREG	0x19, 0
+			NEXTREG	0x19, A
+			NEXTREG	0x43, %10010000 	; Change L2 first palette
 			RET
 
 
@@ -156,6 +162,7 @@ Print_Char_M3:		CALL	Get_Char_Address_M3
 			POP	DE
 			DEC	D 
 			JR	NZ, 1B
+			Z80PORT	0x123B, %00000010
 			RET
 ;
 Print_Char_M2:		CALL	Get_Char_Address_M2
@@ -237,7 +244,7 @@ Get_Char_Address_M1:	SLA	L 			; Multiply X by 8
 			RLCA 
 			OR	%00010000
 			Z80PRTA	0x123B
-			Z80PORT	0x123B, %00000011
+			Z80PORT	0x123B, %00000011	; Enable memory writes
 			LD	A, H
 			AND	0x3F 
 			LD	H, A
@@ -251,7 +258,7 @@ Get_Char_Address_M2:	LD	A, L 			; X
 			RRCA 
 			OR	%00010000
 			Z80PRTA	0x123B
-			Z80PORT	0x123B, %00000011
+			Z80PORT	0x123B, %00000011	; Enable memory writes
 			LD	A, L 			; Swap X and Y
 			LD	L, H
 			SLA	L			; Multiply Y by 8
@@ -282,7 +289,7 @@ Get_Pixel_Address_M1:	LD	D, L 			; Store the Y coordinate in D
 			RLCA 
 			OR	%00010000
 			Z80PRTA	0x123B
-			Z80PORT	0x123B, %00000011
+			Z80PORT	0x123B, %00000111	; Enable memory read/write
 			RET
 ;
 Get_Pixel_Address_M2:	LD	A, E			; Get the X coordinate
@@ -294,15 +301,27 @@ Get_Pixel_Address_M2:	LD	A, E			; Get the X coordinate
 			OR	%00010000
 			LD	E, A
 			Z80PRTA	0x123B
-			Z80PORT	0x123B, %00000011
+			Z80PORT	0x123B, %00000111	; Enable memory read/write 
 			RET
 
 ; Read a point
 ; HL: X
 ; DE: Y	
 ;	
-Point_M1:		CALL	Get_Pixel_Address_M1: LD A, (HL): RET
-Point_M2:		CALL	Get_Pixel_Address_M1: LD A, (HL): RET
+Point_M1:		CALL	Get_Pixel_Address_M1
+			LD 	A, (HL)
+			EX	AF, AF
+			Z80PORT	0x123B, %00000010	; Disable memory writes
+			EX	AF, AF
+			RET
+;
+Point_M2:		CALL	Get_Pixel_Address_M2
+			LD 	A, (HL)
+			EX	AF, AF
+			Z80PORT	0x123B, %00000010	; Disable memory writes
+			EX	AF, AF
+			RET
+;
 Point_M3:		RET
 
 ; Plot a point
@@ -314,10 +333,16 @@ Plot_M3:		RET
 ;
 Plot_M2:		CALL	Adjust_SCRLPOS_P
 			CALL	Get_Pixel_Address_M2
-			JR	Plot
+			CALL	Plot
+			Z80PORT	0x123B, %00000010	; Disable memory writes
+			RET
 ;
 Plot_M1:		CALL	NEXT_GRAPHICS.NEXT_GRAPHICS_ULA.Adjust_SCRLPOS_P
 			CALL	Get_Pixel_Address_M1
+			CALL	Plot
+			Z80PORT	0x123B, %00000010	; Disable memory writes
+			RET
+;			
 Plot:			LD	A, (PLOT_MODE)		; Check plot mode is valid
 			CP	7
 			RET	NC			; Do nothing if plot mode >=7
@@ -380,6 +405,7 @@ Draw_Horz_Line_M1:	CALL	NEXT_GRAPHICS.NEXT_GRAPHICS_ULA.Adjust_SCRLPOS_P
 1:			LD	(HL), A			; Draw the line
 			INC	L
 			DJNZ	1B
+			Z80PORT	0x123B, %00000010	; Disable memory writes
 			RET
 ;
 Draw_Horz_Line_M2:	CALL	Adjust_SCRLPOS_P
@@ -404,12 +430,13 @@ Draw_Horz_Line_M2:	CALL	Adjust_SCRLPOS_P
 			INC	E 			; Increment to next page
 			PUSH	BC
 			Z80PORT	0x123B, E
-			Z80PORT	0x123B, %00000011
+			Z80PORT	0x123B, %00000111
 			POP	BC
 3:			DEC	BC 
 			LD	A, B 
 			OR	C 
 			JR	NZ, 2B
+			Z80PORT	0x123B, %00000010	; Disable memory writes
 			RET 
 ;
 Draw_Horz_Line_M3:	RET
