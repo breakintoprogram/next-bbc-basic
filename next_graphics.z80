@@ -3,7 +3,7 @@
 ;		Spectrum Next Graphics Routines
 ; Author:	eeDean Belfield
 ; Created:	06/05/2021
-; Last Updated:	04/06/2021
+; Last Updated:	07/06/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Added Plot modes for Plot_ULA.
@@ -20,6 +20,7 @@
 ; 26/05/2021:	Added support code for Layer 2 modes 2 and 3
 ; 03/06/2021:	Removed Display_Cursor; Promoted graphics primitives to 16 bit coordinates
 ; 04/06/2021:	Fixed issues with negative coords, scroll offset and clipping in line and triangle
+; 07/06/2021:	Fixed zero-length line bug; Set_Palette_RGB tweaks; Added Transform_Coordinates
 
 			MODULE	NEXT_GRAPHICS 
 
@@ -174,6 +175,46 @@ Pixel_Bounds_Check:	LD	A, D			; If either of the high bytes
 			EX	DE, HL
 			RET	
 
+; Scale X and Y coordinates (experimental)
+; DE: X (0 to 1279) -> (0 to 255)
+; HL: Y (0 to 1023) -> (0 to 191)
+; 
+Transform_Coordinates:	PUSH	HL  		; Stack Y
+			PUSH	DE		; Stack X
+			XOR	A		
+			LD	H, A
+			LD	L, A
+			LD 	D, A
+			LD	E, A
+			LD	B, A 
+			LD	C, A
+			EXX
+			LD	H, A 
+			LD	L, A
+			POP	DE		;  DE: Dividend - X coordinate
+			LD	BC, 5		;  BC: Divisor  - 5
+			LD	A, -33
+			CALL 	FPP.DIVA	;  DE: Answer
+			EX	DE, HL		;  HL: Answer
+;
+			EX	(SP), HL	; HL': Y (DE -> STACK)
+			EX	DE, HL		; DE': Dividend - Y coordinate
+			XOR	A
+			LD	H, A	
+			LD	L, A
+			LD	BC, 5		; BC': Divisor - 5.
+			EXX
+			LD	H,A 
+			LD	L, A 
+			LD	D, A 
+			LD	E, A
+			LD	BC, 21845	;  BC: Divisor - .3
+			LD	A, -33
+			CALL 	FPP.DIVA	;  DE: Answer
+			EX	DE, HL		;  HL: Y
+			POP	DE		;  DE: X
+			RET
+
 ; POINT(x,y)
 ; Read a point off the screen
 ; DE: X
@@ -249,7 +290,6 @@ Plot_Triangle:		JP 	Primitive_Triangle
 ;  D: B colour (3 bits)
 ;
 Set_Palette_RGB:	NEXTREG	0x40, A 		; Select the colour to change
-			LD	A, %10000010		; Change ULA palette
 			LD	A, B			; Get RED component
 			AND	%00000111		; %00000RRR
 			SWAPNIB				; %0RRR0000
@@ -315,6 +355,7 @@ Primitive_Line:		PUSH	HL			; Stack Y2
 2:			LD	(R02), BC		; Vertical line direction
 ;
 			CP16	HL, DE			; Work out which diagonal we are on
+			RET 	Z			; It's a zero length line, so do nothing
 			JR	NC, Primitive_Line_Q2	; Height > Width, so jump to Q2
 			EX 	DE, HL			; Swap width and height and use Q1
 ;
