@@ -11,6 +11,14 @@ Also, to use file IO, you will need to copy the nex file to the img file and lau
 
 > From Version 0.08 I've had to stop ZEsarUX support due to incompatibility with various new featuers of the Next core. Please use CSpect.
 
+##### 20210609: Version 0.10
+- ESC handled correctly on interrupt (can break out of LIST, for example)
+- ESC now breaks out of GET($) and SOUND command
+- Plot modes 1-5 and Point now work in Modes 1 and 2
+- Fixed disappearing cursor bug at bottom of screen in Mode 1 and Mode 2
+- Fixed default palettes in all modes
+- Fixed zero length line bug
+
 ##### 20210606: Version 0.09
 - Fixed clipping in line, circle and triangle graphics primitives
 - Fixed issue with negative plot coordinates
