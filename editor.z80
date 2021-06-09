@@ -2,7 +2,7 @@
 ; Title:	BBC Basic for Spectrum Next - Editor
 ; Author:	Dean Belfield
 ; Created:	18/05/2021
-; Last Updated:	31/05/2021
+; Last Updated:	08/06/2021
 ;
 ; Modinfo:
 ; 19/05/2021:	Added cursor up, cursor down, and copy
@@ -11,8 +11,9 @@
 ; 26/05/2021:	Added support code for Layer 2 modes 2 and 3
 ; 28/05/2021:	Now uses hardware (sprite) cursor
 ; 31/05/2021:	Fixed various editor bugs
+; 08/06/2021:	Now uses LTRAP to test for ESC; Renamed module
 
-			MODULE NEXT_EDITOR
+			MODULE EDITOR
 
 ; Read/edit a complete line, terminated by CR.
 ;  HL: Addresses destination buffer. Must be on a page boundary
@@ -38,6 +39,7 @@ Edit_Line_Loop:		LD	A, 1			; Cursor on
 			LD	C, A 			; Take a copy of the character
 			XOR	A
 			CALL	NEXT_CURSOR.Display	; Cursor off
+			CALL	LTRAP			; Check for escape
 ;
 			LD	A, (FLAGS)		; Get the flags in B
 			LD	B, A
@@ -46,8 +48,6 @@ Edit_Line_Loop:		LD	A, 1			; Cursor on
 			LD	A, C			; Check keyboard edit commands
 			CP	0x7F			; 0x7F: DEL Delete
 			JP	Z, Key_DEL
-			CP	0x1B			; 0x1B: ESC Escape
-			JR	Z, Key_ESC
 			SUB	0x08			; 0x08: BS Back one character
 			JR	Z, Key_BS
 			DEC	A			; 0x09: HT Advance one character
@@ -78,19 +78,6 @@ Edit_Line_Loop:		LD	A, 1			; Cursor on
 			LD	DE, (CHARPOS_X)		; Update the cursor position
 			LD	(CURSOR_X), DE
 			JR	Edit_Line_Loop
-
-; Escape pressed
-;
-Key_ESC:		LD	L, 0			; Clear the buffer
-			LD	(HL), CR
-			LD	H, L
-			LD	(AUTONO), HL		; Stop AUTO line numbering
-			LD	A, (FLAGS)		
-			AND	%11101111		; Reset the copy bit
-			OR	%10000000		; Set the ESC bit
-			LD	(FLAGS), A
-			XOR	A 
-			RET 
 
 ; Enter pressed
 ;
