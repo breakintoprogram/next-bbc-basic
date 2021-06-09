@@ -3,9 +3,10 @@
 ;		Spectrum Next Cursor Routines
 ; Author:	Dean Belfield
 ; Created:	28/05/2021
-; Last Updated:	28/05/2021
+; Last Updated:	07/06/2021
 ;
 ; Modinfo:
+; 07/06/2021:	Move and Display no longer do anything if the cursor is disabled
 
 			MODULE	NEXT_CURSOR
 
@@ -14,7 +15,7 @@ Sprite_Cursor:		EQU	127
 ; Initialise the cursor pattern
 ; E: Cursor width
 ;
-Initialise:		Z80PORT	0x303B, Sprite_Cursor	; Select the sprite again
+Initialise:		Z80PORT	0x303B, Sprite_Cursor	; Select the sprite #
 			LD	C, 8
 1:			LD	B, E 
 			LD	A, 255 
@@ -44,7 +45,11 @@ Offset_XY:		LD	L, A
 			ADD	HL, 32
 			RET
 
-Move:			LD	A, (CURSOR_X)		; Get cursor positions
+Move:			LD	A, (FLAGS)		; Don't do anything if the cursor is not visible
+			BIT 	3, A 
+			RET 	Z
+			NEXTREG 0x34, Sprite_Cursor	; Set the sprite #
+			LD	A, (CURSOR_X)		; Get cursor positions
 			CALL	Offset_XY
 			LD	A, L
 			LD	B, H
@@ -67,7 +72,10 @@ Move:			LD	A, (CURSOR_X)		; Get cursor positions
 			AND 	L
 			OR	%01111111
 			NEXTREG	0x38, A 		; 7: Visible, 6: Extended, 5-0: Pattern
-			NEXTREG	0x39, %10000000		; 7: 4-bit 6: Pattern, 4-1: Scaling, 0: MSB of Y
+			LD	A, H			; MSB of Y
+			AND 	1
+			OR	%10000000	
+			NEXTREG	0x39, A			; 7: 4-bit 6: Pattern, 4-1: Scaling, 0: MSB of Y
 			RET
 
 ; Set cursor visibility
@@ -83,6 +91,10 @@ Display:		AND	1
 			AND	%11110111
 			OR	B
 			LD	(FLAGS), A
+			BIT	3, A
+			RET	NZ
+			NEXTREG	0x34, Sprite_Cursor
+			NEXTREG	0x38, 0
 			RET
 
 			ENDMODULE
