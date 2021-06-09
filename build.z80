@@ -2,11 +2,11 @@
 ; Title:	BBC Basic for Spectrum Next - Main build file
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	04/06/2021
+; Last Updated:	07/06/2021
 ;
 ; Notes:
 ; To start in CSpect, use the following command line (Mac)
-; > mono CSpect.exe -w4 -basickeys -zxnext -nextrom -tv -16bit -s28 -remote -mmc=cspect-next-2gb.img
+; > mono ECSpect.exe -w4 -basickeys -esc -zxnext -nextrom -tv -16bit -s28 -remote -mmc=cspect-next-2gb.img
 ;
 ; Modinfo:
 ; 10/05/2021:	Moved Next specific RAM declarations into ram.z80 and tidied up a bit
@@ -17,12 +17,13 @@
 ; 24/05/2021:	Moved Code_Start down to 0x5B00 (after ULA screen RAM)
 ; 28/05/2021:	Added next_cursor.z80
 ; 04/06/2021:	Added next_sound.z80
+; 07/06/2021:	Added next_sprites.z80
 
 			SLDOPT COMMENT WPMEM, LOGPOINT, ASSERTION
 			
 			DEVICE ZXSPECTRUMNEXT		; sjasmplus directive for SAVESNA at end
 
-			DEFINE BUILD_VERSION "0.09"	; Build version
+			DEFINE BUILD_VERSION "0.10"	; Build version
 ;	
 ; Assembly flags
 ;
@@ -68,6 +69,7 @@ Code_Start		EQU	0x5B00			; Code straight after screen RAM
 			include "next_dma.z80"		; Spectrum Next DMA routines
 			include "next_rtc.z80"		; Spectrum Next Real Time Clock routines
 			include "next_sound.z80"	; Spectrum Next AY sound chip routines
+			include "next_sprites.z80"	; Spectrum Next Sprite routines
 ;
 ; Other generic Z80N helper functions
 ;
