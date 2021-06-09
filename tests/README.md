@@ -8,5 +8,7 @@ A handful of BBC BASIC programs I use for regression and soak testing:
 - mandlebrot.bbc: Draw a Mandlebrot set
 - hatgraph.bbc: A 3D graph
 - sound.bbc: Tests the SOUND command, should play Amazing Grace
+- fireworks.bbc - Tests colour palette animation in Mode 2
+- shadows.bbc - Ray traced spheres
 
 And there are also a set of Rugg/Feldman (PCW) benchmark programs; benchm1.bbc to benchm8.bbc
