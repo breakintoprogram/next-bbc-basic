@@ -28,6 +28,7 @@
 ;
 ; Modinfo:
 ; 06/06/2021:	Added LUA script to create note table
+; 08/06/2021:	Queue_Note now uses LTRAP to test for ESC
 
 			MODULE	NEXT_SOUND
 
@@ -110,18 +111,21 @@ Queue_Note:		LD	A, L			; Channel number
 ;			
 0:			LD	A, (IX + 3) 		; Check length
 			CP	5			; Max 5 items in FIFO queue
-			JR	NC, 0B
-			INC	(IX + 3)		; Increment length
+			JR	C, 1F
+			HALT
+			CALL	LTRAP			; Check for ESC
+			JR	0B			; And loop
 ;
+1:			INC	(IX + 3)		; Increment length
 			LD	A, L			; Channel number
 			CALL	Get_Channel_Buffer	; HL: Channel FIFO buffer
 			LD	A, (IX + 2)		; Write pointer
 			ADD	HL, A			; HL: Address to store data in
 			ADD	A, 3			; Advance the pointer
 			CP	15
-			JR	C, 1F 
+			JR	C, 2F 
 			SUB	15
-1:			LD	(IX + 2), A		; And store
+2:			LD	(IX + 2), A		; And store
 ;
 			LD	(HL), E			; Duration
 			INC	HL 
