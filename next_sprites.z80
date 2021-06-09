@@ -1,0 +1,33 @@
+;
+; Title:	BBC Basic Interpreter - Z80 version
+;		Spectrum Next Sprite Routines
+; Author:	Dean Belfield
+; Created:	07/06/2021
+; Last Updated:	07/06/2021
+;
+; Modinfo:
+
+			MODULE	NEXT_SPRITES
+
+;  A: Sprite number
+; DE: X coordinate
+; HL: Y coordinate
+;  C: Pattern number
+;
+Render:			NEXTREG	0x34, A 	; The sprite number
+			LD 	A, E 
+			NEXTREG	0x35, A		; Sprite X coordinate (LSB)
+			LD 	A, L 		
+			NEXTREG	0x36, A		; Sprite Y coordinate (LSB)
+			LD	A, D
+			AND	1 
+			NEXTREG	0x37, A 	; Sprite X coordinate (MSB)
+			LD	A, C 
+			OR 	%11000000
+			NEXTREG	0x38, A		; Visible, Extended, Pattern
+			LD	A, H 
+			AND	1 
+			NEXTREG	0x39, A 	; Sprite Y coordinate (MSB)
+			RET 
+
+			ENDMODULE
