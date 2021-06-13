@@ -3,9 +3,7 @@
 ;		Spectrum Next Layer 2 Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	13/05/2021
-; Last Updated:	07/06/2021
-;
-; TODO:		L2 will read read/write access to the screen for any plot operation other than SET
+; Last Updated:	13/06/2021
 ;
 ; Modinfo:
 ; 14/05/2021:	Added plot modes
@@ -17,6 +15,8 @@
 ; 26/05/2021:	Added support code for Layer 2 modes 2 and 3
 ; 04/06/2021:	Point and Triangle now work correctly with scroll offset
 ; 07/06/2021:	Plot modes 1-5 and Point now work correctly; Fixed sprite clipping window & default palette
+; 13/06/2021:	Now uses NREG definitions in equs.z80; Added Mode 3 graphics and text code
+
 
 			MODULE	NEXT_GRAPHICS_L2
 
@@ -36,9 +36,9 @@ Set_Video_Mode_M2:	LD	A, %00010000		; 320 x 256 x 8
 			LD	D, 255
 			JR	Set_Video_Mode
 ;
-Set_Video_Mode_M3:	LD	A, %00010000		; 640 x 256 x 4
+Set_Video_Mode_M3:	LD	A, %00100000		; 640 x 256 x 4
 			LD	E, %00100011		; Sprites, no clipping, SLU priority
-			LD	C, 40
+			LD	C, 80
 			LD	B, 32
 			LD	D, 255
 ;
@@ -63,19 +63,19 @@ Set_Video_Mode:		PUSH	AF, BC, DE
 			LD	(PIXEL_HEIGHT), HL
 			CALL	NEXT_GRAPHICS.Clear_Screen
 			POP	DE, BC, AF
-			NEXTREG 0x70, A
+			NEXTREG NREG.L2_CONTROL, A
 			LD	A, E
-			NEXTREG 0x15, A		
+			NEXTREG NREG.LAYER_CONTROL, A		
 			LD	A, D			
-			NEXTREG	0x18, 0			; Clip Window
-			NEXTREG	0x18, 255
-			NEXTREG	0x18, 0
-			NEXTREG	0x18, A	
-			NEXTREG	0x19, 0			; Clip Window Sprites
-			NEXTREG	0x19, 255
-			NEXTREG	0x19, 0
-			NEXTREG	0x19, A
-			NEXTREG	0x43, %10010000 	; Change L2 first palette
+			NEXTREG	NREG.CLIP_WINDOW_L2, 0		; Clip Window
+			NEXTREG	NREG.CLIP_WINDOW_L2, 255
+			NEXTREG	NREG.CLIP_WINDOW_L2, 0
+			NEXTREG	NREG.CLIP_WINDOW_L2, A	
+			NEXTREG	NREG.CLIP_WINDOW_SPRITES, 0	; Clip Window Sprites
+			NEXTREG	NREG.CLIP_WINDOW_SPRITES, 255
+			NEXTREG	NREG.CLIP_WINDOW_SPRITES, 0
+			NEXTREG	NREG.CLIP_WINDOW_SPRITES, A
+			NEXTREG	NREG.PALETTE_CONTROL, %10010000 ; Change L2 first palette
 			RET
 
 
@@ -89,7 +89,7 @@ Clear_Screen_M3:	LD	B, 5
 ;
 Clear_Screen:		LD	A, (BORDER_COLOUR)
 			OUT 	(254), A
-			NEXTREG	0x17, 0			; Scroll register
+			NEXTREG	NREG.L2_SCROLL_Y, 0	; Scroll register
 			Z80PORT	0x123B, %00000011	; Enable for memory writes
 1:			PUSH	BC
 			LD	A, B 
@@ -112,7 +112,7 @@ Set_Scroll_Reg:		LD	A, (SCRLPOS_Y)
 			ADD	A, A
 			ADD	A, A
 			ADD	A, A 
-			NEXTREG	0x17, A
+			NEXTREG	NREG.L2_SCROLL_Y, A
 			RET 
 
 ; Adjust HL for scroll position
@@ -133,34 +133,50 @@ Adjust_SCRLPOS_P:	LD	A, (SCRLPOS_Y)		; Get Y scroll position
 ;  L: X Coordinate
 ;  H: Y Coordinate
 ;
-Print_Char_M3:		CALL	Get_Char_Address_M3
+Print_Char_M3:		CALL	Get_Char_Address_M3			
 			LD 	D, 8			; Multiply the character byte by 8
 			MUL 	D,E
 			LD 	A,0x3C			; Address of character set in ROM (HIGH)
 			ADD 	A,D
 			LD 	D,A
 			LD	BC, (TEXT_FOREGROUND)	; C: Foreground, B: Background
-			LD	A, (DE)			; Get the byte from ROM into A
-;
-			LD	D, 4 			; Inner loop counter
-1:			PUSH	DE 
-			LD	E, A 			
-			SLA	E			; Get first nibble
-			JR	C, 3F 
-			LD	D, B 
-			JR	4F
-3:			LD	D, C 
-4:			SLA	E			; Get second nibble
-			JR	C, 5F 
-			LD	A, B 
-			JR	6F
-5:			LD	A, C
-6:			SWAPNIB			
-			OR	D
-			SWAPNIB
+			CALL	Get_Colour_Nibbles
+			LD	IXH, 8			; Outer loop counter
+			LD	B, high R00		; Index into nibble table
+1:			LD	A, (DE)			; First pair of pixels
+			AND	%11000000
+			RLCA 
+			RLCA 
+			LD	C, A 
+			LD	A, (BC)
+			LD	(HL), A 
+			INC	H
+			LD	A, (DE)			; Second pair of pixels
+			AND	%00110000
+			SWAPNIB 
+			LD	C, A 
+			LD	A, (BC)
+			LD	(HL), A 
+			INC	H 
+			LD	A, (DE)			; Third pair of pixels
+			AND	%00001100
+			RRCA 
+			RRCA 
+			LD	C, A
+			LD	A, (BC)
 			LD	(HL), A
-			POP	DE
-			DEC	D 
+			INC	H
+			LD	A, (DE)			; Final pair of pixels
+			AND	%00000011
+			LD	C, A 
+			LD	A, (BC)
+			LD	(HL), A 
+			DEC	H 			; Decrement screen position
+			DEC	H
+			DEC	H
+			INC	DE
+			INC	L
+			DEC	IXH 
 			JR	NZ, 1B
 			Z80PORT	0x123B, %00000010
 			RET
@@ -219,6 +235,32 @@ Print_Char_M1:		CALL 	Get_Char_Address_M1
 			Z80PORT	0x123B, %00000010	; Disable memory writes
 			RET
 
+; Get all possible colour nibble pairs for Layer 2 (640x256)
+;  C: Foreground colour
+;  B: Background colour
+; Returns:
+; R0-R3: Colour nibble pairs
+;
+Get_Colour_Nibbles:	LD	A, B
+			AND	0x0F 
+			LD	B, A 
+			SWAPNIB
+			OR	B 
+			LD	(R00), A 		; R0: BB
+			LD	A, C
+			AND 	0x0F 
+			LD	C, A 
+			SWAPNIB
+			OR	C 
+			LD	(R03), A 		; R3: FF
+			LD	A, B 			
+			SWAPNIB
+			OR	C
+			LD	(R01), A 		; R1: BF
+			SWAPNIB 
+			LD	(R02), A 		; R2: FB
+			RET 
+
 ; Gets the ASCII code of a chararcter on-screen
 ;  L: X Coordinate
 ;  H: Y Coordinate
@@ -250,7 +292,6 @@ Get_Char_Address_M1:	SLA	L 			; Multiply X by 8
 			LD	H, A
 			RET
 ;
-Get_Char_Address_M3:	SRL	L 			; Divide X by 2
 Get_Char_Address_M2:	LD	A, L 			; X	
 			AND	%00111000		; Get the bank number
 			RRCA 
@@ -267,6 +308,23 @@ Get_Char_Address_M2:	LD	A, L 			; X
 			ADD	A, A 			; Multiply X by 8
 			ADD	A, A
 			ADD	A, A 
+			AND	0x3F
+			LD	H, A
+			RET
+;
+Get_Char_Address_M3:	LD	A, L 			; X	
+			AND	%01110000		; Get the bank number
+			SWAPNIB
+			OR	%00010000
+			Z80PRTA	0x123B
+			Z80PORT	0x123B, %00000011	; Enable memory writes
+			LD	A, L 			; Swap X and Y
+			LD	L, H
+			SLA	L			; Multiply Y by 8
+			SLA	L
+			SLA	L
+			ADD	A, A 			; Multiply X by 4
+			ADD	A, A
 			AND	0x3F
 			LD	H, A
 			RET
@@ -303,6 +361,13 @@ Get_Pixel_Address_M2:	LD	A, E			; Get the X coordinate
 			Z80PRTA	0x123B
 			Z80PORT	0x123B, %00000111	; Enable memory read/write 
 			RET
+;
+Get_Pixel_Address_M3:	SRL	D 			; But two pixels per byte
+			RR	E 			; So divide X by 2
+			PUSH	AF
+			CALL	Get_Pixel_Address_M2
+			POP	AF
+			RET
 
 ; Read a point
 ; HL: X
@@ -322,14 +387,41 @@ Point_M2:		CALL	Get_Pixel_Address_M2
 			EX	AF, AF
 			RET
 ;
-Point_M3:		RET
+Point_M3:		CALL	Get_Pixel_Address_M3
+			LD	A, (HL)			; Fetch the byte
+			JR	C, 1F 			; If right pixel then skip
+			SWAPNIB				; Swap left pixel so its in right pixels nibble
+1:			AND	0x0F 			; Mask out the pixel value
+			EX	AF, AF 
+			Z80PORT	0x123B, %00000010	; Disable memory writes
+			EX	AF, AF
+			RET
+			
+			RET
 
 ; Plot a point
 ; HL: Y
 ; DE: X
 ;	
 ;
-Plot_M3:		RET
+Plot_M3:		CALL	Adjust_SCRLPOS_P
+			CALL	Get_Pixel_Address_M3
+			LD	A, (PLOT_COLOUR)
+			JR	C, 1F
+			AND	0x0F			; Left hand pixel
+			SWAPNIB		
+			LD	E, A 			
+			LD	A, (HL)
+			AND 	0x0F
+			JR	2F 
+1:			AND	0x0F			; Right hand pixel
+			LD	E, A 
+			LD	A, (HL)
+			AND	0xF0
+2:			OR	E 
+			LD	(HL), A
+			Z80PORT	0x123B, %00000010	; Disable memory writes
+			RET
 ;
 Plot_M2:		CALL	Adjust_SCRLPOS_P
 			CALL	Get_Pixel_Address_M2
@@ -425,21 +517,84 @@ Draw_Horz_Line_M2:	CALL	Adjust_SCRLPOS_P
 2:			LD	(HL), D
 			INC	H 
 			BIT	6, H 
-			JR	Z, 3F
-			LD	H, 0			; Reset pixel pointer
-			INC	E 			; Increment to next page
-			PUSH	BC
-			Z80PORT	0x123B, E
-			Z80PORT	0x123B, %00000111
-			POP	BC
-3:			DEC	BC 
+			CALL	NZ, Next_Bank_M2M3
+			DEC	BC 
 			LD	A, B 
 			OR	C 
 			JR	NZ, 2B
 			Z80PORT	0x123B, %00000010	; Disable memory writes
 			RET 
 ;
-Draw_Horz_Line_M3:	RET
+Draw_Horz_Line_M3:	CALL	Adjust_SCRLPOS_P
+			PUSH	HL 			; Stack Y coordinate
+			LD	H, B 			; HL: X1
+			LD	L, C
+			CP16	HL, DE 			; DE: X2
+			JR	NC, 1F			; X1 - X2 is > 0
+			EX	DE, HL			; Swap them
+1:			SUB	HL, DE 			; HL: Line length
+			EX	(SP), HL 		; Swap with Y coordinate on stack
+			CALL	Get_Pixel_Address_M3
+			JR	NC, 2F			; If we're on even boundary then fine
+;
+			LD	A, (PLOT_COLOUR)	; Get the plot colour
+			AND	0x0F
+			LD	D, A 
+			LD	A, (HL) 		; Write out the odd LSH nibble
+			AND	0xF0	
+			OR	D 
+			LD	(HL), A					
+			INC	H
+			BIT	6, H
+			CALL	NZ, Next_Bank_M2M3
+;
+2:			LD	A, (PLOT_COLOUR)	; Get the plot colour
+			AND	0x0F
+			LD	D, A 
+			SWAPNIB
+			OR	D 
+			LD	D, A 			; D: Plot colour
+;
+			POP	BC			; Restore the loop counter
+			SRL	B			; Divide by 2		
+			RR	C
+			PUSH	AF			; Stack the carry bit
+			LD	A, B 			; Check for 0
+			OR	C 
+			JR	Z, 4F
+;
+3:			LD	(HL), D 
+			INC	H 
+			BIT	6, H 
+			CALL	NZ, Next_Bank_M2M3
+			DEC	BC 			; TODO: Needs to do half this
+			LD	A, B 
+			OR	C
+			JR	NZ, 3B
+;
+4:			POP	AF 			; Restore the carry bit
+			JR	NC, 5F			; Is there a final pixel to plot?
+			LD	A, D 			; Yes, we already have the plot colours in D
+			AND	0xF0			; Just want it in top nibble
+			LD	D, A 
+			LD	A, (HL)
+			AND	0x0F
+			OR	D 
+			LD	(HL), A
+5:			Z80PORT	0x123B, %00000010	; Disable memory writes
+			RET 
+
+; Switch to the next bank
+; HL: Screen addreses
+;  E: Curent bank
+;
+Next_Bank_M2M3:		LD	H, 0			; Reset pixel pointer
+			INC	E 			; Increment to next page
+			PUSH	BC
+			Z80PORT	0x123B, E
+			Z80PORT	0x123B, %00000111
+			POP	BC
+			RET
 
 ; Set the graphics colour
 ;  C: Colour to set
