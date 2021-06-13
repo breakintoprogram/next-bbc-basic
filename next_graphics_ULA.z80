@@ -3,7 +3,7 @@
 ;		Spectrum Next ULA Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	13/05/2021
-; Last Updated:	08/06/2021
+; Last Updated:	11/06/2021
 ;
 ; Modinfo:
 ; 15/05/2021:	Plot now pulls PLOT_MODE and PLOT_COLOUR direct from RAM; Updates for MODE command
@@ -16,6 +16,7 @@
 ; 04/06/2021:	Point and Triangle now work correctly with scroll offset
 ; 06/06/2021:	CLS now uses DMA
 ; 08/06/2021:	Fixed default palette and reset sprite clipping
+; 11/06/2021:	Now uses NREG definitions in equs.z80
 
 			MODULE	NEXT_GRAPHICS_ULA
 
@@ -33,17 +34,17 @@ Set_Video_Mode:		LD	A, %01000111
 			LD	BC, 192 
 			LD	(PIXEL_HEIGHT), BC
 			CALL	NEXT_GRAPHICS.Clear_Screen
-			NEXTREG 0x15, %00101001		; Enable sprites & clipping, SUL priority
-			NEXTREG	0x70, %00000000		; Reset Layer 2 resolution
-			NEXTREG	0x18, 0		
-			NEXTREG	0x18, 255
-			NEXTREG	0x18, 0
-			NEXTREG	0x18, 191		; Resetting Layer 2 clipping
-			NEXTREG	0x19, 0			; Clip Window Sprites
-			NEXTREG	0x19, 255
-			NEXTREG	0x19, 0
-			NEXTREG	0x19, 191 + 32
-			NEXTREG	0x43, %10000000 	; Change ULA first palette
+			NEXTREG NREG.LAYER_CONTROL, %00101001	; Enable sprites & clipping, SUL priority
+			NEXTREG	NREG.L2_CONTROL, %00000000	; Reset Layer 2 resolution
+			NEXTREG	NREG.CLIP_WINDOW_L2, 0		
+			NEXTREG	NREG.CLIP_WINDOW_L2, 255
+			NEXTREG	NREG.CLIP_WINDOW_L2, 0
+			NEXTREG	NREG.CLIP_WINDOW_L2, 191	; Resetting Layer 2 clipping
+			NEXTREG	NREG.CLIP_WINDOW_SPRITES, 0	; Clip Window Sprites
+			NEXTREG	NREG.CLIP_WINDOW_SPRITES, 255
+			NEXTREG	NREG.CLIP_WINDOW_SPRITES, 0
+			NEXTREG	NREG.CLIP_WINDOW_SPRITES, 191 + 32
+			NEXTREG	NREG.PALETTE_CONTROL, %10000000 ; Change ULA first palette
 			RET	
 
 ; Clear the screen
@@ -58,7 +59,7 @@ Clear_Screen:		LD	A, (BORDER_COLOUR)
 			LD	DE, 22528
 			LD	BC, 768
 			CALL	NEXT_DMA.FillDMA
-			NEXTREG	ULA_Y_SCROLL, 0		; Reset scroll
+			NEXTREG	NREG.ULA_SCROLL_Y, 0		; Reset scroll
 			RET
 
 ; Scroll
@@ -68,7 +69,7 @@ Set_Scroll_Reg:		LD	A, (SCRLPOS_Y)
 			ADD	A, A
 			ADD	A, A
 			ADD	A, A 
-			NEXTREG	ULA_Y_SCROLL, A 
+			NEXTREG	NREG.ULA_SCROLL_Y, A 
 			RET
 
 ; Adjust HL for scroll position
