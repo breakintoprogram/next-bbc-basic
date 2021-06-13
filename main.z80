@@ -4,7 +4,7 @@
 ; Author:	(C) Copyright  R.T.Russell  1984
 ; Modified By:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	21/05/2021
+; Last Updated:	13/06/2021
 ;
 ; Modinfo:
 ; 07/05/1984:	Version 2.3
@@ -12,6 +12,7 @@
 ; 02/05/2021:	Modified by Dean Belfield to assemble with SJASMPLUS
 ; 13/05/2021	Fixed (C) sign in boot message - removed Spectrum (C) symbol
 ; 21/05/2021:	Handful of Z80N optimisations
+; 13/06/2021:	Improved readability of KEYWDS table
 
 			MODULE MAIN
 ;
@@ -193,308 +194,144 @@ ATEND:			POP     BC              ;LINE LENGTH
 ; ONLY MATCH WITH THE WORD FOLLOWED IMMEDIATELY
 ; BY A DELIMITER.
 ;
-KEYWDS:			DEFB    80H
-			DEFM    'AND'
-			DEFB    94H
-			DEFM    'ABS'
-			DEFB    95H
-			DEFM    'ACS'
-			DEFB    96H
-			DEFM    'ADVAL'
-			DEFB    97H
-			DEFM    'ASC'
-			DEFB    98H
-			DEFM    'ASN'
-			DEFB    99H
-			DEFM    'ATN'
-			DEFB    0C6H
-			DEFM    'AUTO'
-			DEFB    9AH
-			DEFM    'BGET'
-			DEFB    0
-			DEFB    0D5H
-			DEFM    'BPUT'
-			DEFB    0
-			DEFB    0FBH
-			DEFM    'COLOUR'
-			DEFB    0FBH
-			DEFM    'COLOR'
-			DEFB    0D6H
-			DEFM    'CALL'
-			DEFB    0D7H
-			DEFM    'CHAIN'
-			DEFB    0BDH
-			DEFM    'CHR$'
-			DEFB    0D8H
-			DEFM    'CLEAR'
-			DEFB    0
-			DEFB    0D9H
-			DEFM    'CLOSE'
-			DEFB    0
-			DEFB    0DAH
-			DEFM    'CLG'
-			DEFB    0
-			DEFB    0DBH
-			DEFM    'CLS'
-			DEFB    0
-			DEFB    9BH
-			DEFM    'COS'
-			DEFB    9CH
-			DEFM    'COUNT'
-			DEFB    0
-			DEFB    0DCH
-			DEFM    'DATA'
-			DEFB    9DH
-			DEFM    'DEG'
-			DEFB    0DDH
-			DEFM    'DEF'
-			DEFB    0C7H
-			DEFM    'DELETE'
-			DEFB    81H
-			DEFM    'DIV'
-			DEFB    0DEH
-			DEFM    'DIM'
-			DEFB    0DFH
-			DEFM    'DRAW'
-			DEFB    0E1H
-			DEFM    'ENDPROC'
-			DEFB    0
-			DEFB    0E0H
-			DEFM    'END'
-			DEFB    0
-			DEFB    0E2H
-			DEFM    'ENVELOPE'
-			DEFB    8BH
-			DEFM    'ELSE'
-			DEFB    0A0H
-			DEFM    'EVAL'
-			DEFB    9EH
-			DEFM    'ERL'
-			DEFB    0
-			DEFB    85H
-			DEFM    'ERROR'
-			DEFB    0C5H
-			DEFM    'EOF'
-			DEFB    0
-			DEFB    82H
-			DEFM    'EOR'
-			DEFB    9FH
-			DEFM    'ERR'
-			DEFB    0
-			DEFB    0A1H
-			DEFM    'EXP'
-			DEFB    0A2H
-			DEFM    'EXT'
-			DEFB    0
-			DEFB    0E3H
-			DEFM    'FOR'
-			DEFB    0A3H
-			DEFM    'FALSE'
-			DEFB    0
-			DEFB    0A4H
-			DEFM    'FN'
-			DEFB    0E5H
-			DEFM    'GOTO'
-			DEFB    0BEH
-			DEFM    'GET$'
-			DEFB    0A5H
-			DEFM    'GET'
-			DEFB    0E4H
-			DEFM    'GOSUB'
-			DEFB    0E6H
-			DEFM    'GCOL'
-			DEFB    93H
-			DEFM    'HIMEM'
-			DEFB    0
-			DEFB    0E8H
-			DEFM    'INPUT'
-			DEFB    0E7H
-			DEFM    'IF'
-			DEFB    0BFH
-			DEFM    'INKEY$'
-			DEFB    0A6H
-			DEFM    'INKEY'
-			DEFB    0A8H
-			DEFM    'INT'
-			DEFB    0A7H
-			DEFM    'INSTR('
-			DEFB    0C9H
-			DEFM    'LIST'
-			DEFB    86H
-			DEFM    'LINE'
-			DEFB    0C8H
-			DEFM    'LOAD'
-			DEFB    92H
-			DEFM    'LOMEM'
-			DEFB    0
-			DEFB    0EAH
-			DEFM    'LOCAL'
-			DEFB    0C0H
-			DEFM    'LEFT$('
-			DEFB    0A9H
-			DEFM    'LEN'
-			DEFB    0E9H
-			DEFM    'LET'
-			DEFB    0ABH
-			DEFM    'LOG'
-			DEFB    0AAH
-			DEFM    'LN'
-			DEFB    0C1H
-			DEFM    'MID$('
-			DEFB    0EBH
-			DEFM    'MODE'
-			DEFB    83H
-			DEFM    'MOD'
-			DEFB    0ECH
-			DEFM    'MOVE'
-			DEFB    0EDH
-			DEFM    'NEXT'
-			DEFB    0CAH
-			DEFM    'NEW'
-			DEFB    0
-			DEFB    0ACH
-			DEFM    'NOT'
-			DEFB    0CBH
-			DEFM    'OLD'
-			DEFB    0
-			DEFB    0EEH
-			DEFM    'ON'
-			DEFB    87H
-			DEFM    'OFF'
-			DEFB    84H
-			DEFM    'OR'
-			DEFB    8EH
-			DEFM    'OPENIN'
-			DEFB    0AEH
-			DEFM    'OPENOUT'
-			DEFB    0ADH
-			DEFM    'OPENUP'
-			DEFB    0FFH
-			DEFM    'OSCLI'
-			DEFB    0F1H
-			DEFM    'PRINT'
-			DEFB    90H
-			DEFM    'PAGE'
-			DEFB    0
-			DEFB    8FH
-			DEFM    'PTR'
-			DEFB    0
-			DEFB    0AFH
-			DEFM    'PI'
-			DEFB    0
-			DEFB    0F0H
-			DEFM    'PLOT'
-			DEFB    0B0H
-			DEFM    'POINT('
-			DEFB    0F2H
-			DEFM    'PROC'
-			DEFB    0B1H
-			DEFM    'POS'
-			DEFB    0
-			DEFB    0CEH
-			DEFM    'PUT'
-			DEFB    0F8H
-			DEFM    'RETURN'
-			DEFB    0
-			DEFB    0F5H
-			DEFM    'REPEAT'
-			DEFB    0F6H
-			DEFM    'REPORT'
-			DEFB    0
-			DEFB    0F3H
-			DEFM    'READ'
-			DEFB    0F4H
-			DEFM    'REM'
-			DEFB    0F9H
-			DEFM    'RUN'
-			DEFB    0
-			DEFB    0B2H
-			DEFM    'RAD'
-			DEFB    0F7H
-			DEFM    'RESTORE'
-			DEFB    0C2H
-			DEFM    'RIGHT$('
-			DEFB    0B3H
-			DEFM    'RND'
-			DEFB    0
-			DEFB    0CCH
-			DEFM    'RENUMBER'
-			DEFB    88H
-			DEFM    'STEP'
-			DEFB    0CDH
-			DEFM    'SAVE'
-			DEFB    0B4H
-			DEFM    'SGN'
-			DEFB    0B5H
-			DEFM    'SIN'
-			DEFB    0B6H
-			DEFM    'SQR'
-			DEFB    89H
-			DEFM    'SPC'
-			DEFB    0C3H
-			DEFM    'STR$'
-			DEFB    0C4H
-			DEFM    'STRING$('
-			DEFB    0D4H
-			DEFM    'SOUND'
-			DEFB    0FAH
-			DEFM    'STOP'
-			DEFB    0
-			DEFB    0B7H
-			DEFM    'TAN'
-			DEFB    8CH
-			DEFM    'THEN'
-			DEFB    0B8H
-			DEFM    'TO'
-			DEFB    8AH
-			DEFM    'TAB('
-			DEFB    0FCH
-			DEFM    'TRACE'
-			DEFB    91H
-			DEFM    'TIME'
-			DEFB    0
-			DEFB    0B9H
-			DEFM    'TRUE'
-			DEFB    0
-			DEFB    0FDH
-			DEFM    'UNTIL'
-			DEFB    0BAH
-			DEFM    'USR'
-			DEFB    0EFH
-			DEFM    'VDU'
-			DEFB    0BBH
-			DEFM    'VAL'
-			DEFB    0BCH
-			DEFM    'VPOS'
-			DEFB    0
-			DEFB    0FEH
-			DEFM    'WIDTH'
-			DEFB    0D3H
-			DEFM    'HIMEM'
-			DEFB    0D2H
-			DEFM    'LOMEM'
-			DEFB    0D0H
-			DEFM    'PAGE'
-			DEFB    0CFH
-			DEFM    'PTR'
-			DEFB    0D1H
-			DEFM    'TIME'
-			DEFB    1
-			DEFM    'Missing '
-			DEFB    2
-			DEFM    'No such '
-			DEFB    3
-			DEFM    'Bad '
-			DEFB    4
-			DEFM    ' range'
-			DEFB    5
-			DEFM    'variable'
-			DEFB    6
-			DEFM    'Out of'
-			DEFB    7
-			DEFM    'No '
-			DEFB    8
-			DEFM    ' space'
+KEYWDS:			DEFB    0x80, "AND"
+			DEFB    0x94, "ABS"
+			DEFB    0x95, "ACS"
+			DEFB    0x96, "ADVAL"
+			DEFB    0x97, "ASC"
+			DEFB    0x98, "ASN"
+			DEFB    0x99, "ATN"
+			DEFB    0xC6, "AUTO"
+			DEFB    0x9A, "BGET", 0
+			DEFB    0xD5, "BPUT", 0
+			DEFB    0xFB, "COLOUR"
+			DEFB    0xFB, "COLOR"
+			DEFB    0xD6, "CALL"
+			DEFB    0xD7, "CHAIN"
+			DEFB    0xBD, "CHR$"
+			DEFB    0xD8, "CLEAR", 0
+			DEFB    0xD9, "CLOSE", 0
+			DEFB    0xDA, "CLG", 0
+			DEFB    0xDB, "CLS", 0
+			DEFB    0x9B, "COS"
+			DEFB    0x9C, "COUNT", 0
+			DEFB    0xDC, "DATA"
+			DEFB    0x9D, "DEG"
+			DEFB    0xDD, "DEF"
+			DEFB    0xC7, "DELETE"
+			DEFB    0x81, "DIV"
+			DEFB    0xDE, "DIM"
+			DEFB    0xDF, "DRAW"
+			DEFB    0xE1, "ENDPROC", 0
+			DEFB    0xE0, "END", 0
+			DEFB    0xE2, "ENVELOPE"
+			DEFB    0x8B, "ELSE"
+			DEFB    0xA0, "EVAL"
+			DEFB    0x9E, "ERL", 0
+			DEFB    0x85, "ERROR"
+			DEFB    0xC5, "EOF", 0
+			DEFB    0x82, "EOR"
+			DEFB    0x9F, "ERR", 0
+			DEFB    0xA1, "EXP"
+			DEFB    0xA2, "EXT", 0
+			DEFB    0xE3, "FOR"
+			DEFB    0xA3, "FALSE", 0
+			DEFB    0xA4, "FN"
+			DEFB    0xE5, "GOTO"
+			DEFB    0xBE, "GET$"
+			DEFB    0xA5, "GET"
+			DEFB    0xE4, "GOSUB"
+			DEFB    0xE6, "GCOL"
+			DEFB    0x93, "HIMEM", 0
+			DEFB    0xE8, "INPUT"
+			DEFB    0xE7, "IF"
+			DEFB    0xBF, "INKEY$"
+			DEFB    0xA6, "INKEY"
+			DEFB    0xA8, "INT"
+			DEFB    0xA7, "INSTR("
+			DEFB    0xC9, "LIST"
+			DEFB    0x86, "LINE"
+			DEFB    0xC8, "LOAD"
+			DEFB    0x92, "LOMEM", 0
+			DEFB    0xEA, "LOCAL"
+			DEFB    0xC0, "LEFT$("
+			DEFB    0xA9, "LEN"
+			DEFB    0xE9, "LET"
+			DEFB    0xAB, "LOG"
+			DEFB    0xAA, "LN"
+			DEFB    0xC1, "MID$("
+			DEFB    0xEB, "MODE"
+			DEFB    0x83, "MOD"
+			DEFB    0xEC, "MOVE"
+			DEFB    0xED, "NEXT"
+			DEFB    0xCA, "NEW", 0
+			DEFB    0xAC, "NOT"
+			DEFB    0xCB, "OLD", 0
+			DEFB    0xEE, "ON"
+			DEFB    0x87, "OFF"
+			DEFB    0x84, "OR"
+			DEFB    0x8E, "OPENIN"
+			DEFB    0xAE, "OPENOUT"
+			DEFB    0xAD, "OPENUP"
+			DEFB    0xFF, "OSCLI"
+			DEFB    0xF1, "PRINT"
+			DEFB    0x90, "PAGE", 0
+			DEFB    0x8F, "PTR", 0
+			DEFB    0xAF, "PI", 0
+			DEFB    0xF0, "PLOT"
+			DEFB    0xB0, "POINT("
+			DEFB    0xF2, "PROC"
+			DEFB    0xB1, "POS", 0
+			DEFB    0xCE, "PUT"
+			DEFB    0xF8, "RETURN", 0
+			DEFB    0xF5, "REPEAT"
+			DEFB    0xF6, "REPORT", 0
+			DEFB    0xF3, "READ"
+			DEFB    0xF4, "REM"
+			DEFB    0xF9, "RUN", 0
+			DEFB    0xB2, "RAD"
+			DEFB    0xF7, "RESTORE"
+			DEFB    0xC2, "RIGHT$("
+			DEFB    0xB3, "RND", 0
+			DEFB    0xCC, "RENUMBER"
+			DEFB    0x88, "STEP"
+			DEFB    0xCD, "SAVE"
+			DEFB    0xB4, "SGN"
+			DEFB    0xB5, "SIN"
+			DEFB    0xB6, "SQR"
+			DEFB    0x89, "SPC"
+			DEFB    0xC3, "STR$"
+			DEFB    0xC4, "STRING$("
+			DEFB    0xD4, "SOUND"
+			DEFB    0xFA, "STOP", 0
+			DEFB    0xB7, "TAN"
+			DEFB    0x8C, "THEN"
+			DEFB    0xB8, "TO"
+			DEFB    0x8A, "TAB("
+			DEFB    0xFC, "TRACE"
+			DEFB    0x91, "TIME", 0
+			DEFB    0xB9, "TRUE", 0
+			DEFB    0xFD, "UNTIL"
+			DEFB    0xBA, "USR"
+			DEFB    0xEF, "VDU"
+			DEFB    0xBB, "VAL"
+			DEFB    0xBC, "VPOS", 0
+			DEFB    0xFE, "WIDTH"
+			DEFB    0xD3, "HIMEM"
+			DEFB    0xD2, "LOMEM"
+			DEFB    0xD0, "PAGE"
+			DEFB    0xCF, "PTR"
+			DEFB    0xD1, "TIME"
+;
+			DEFB    1, "Missing "
+			DEFB    2, "No such "
+			DEFB    3, "Bad "
+			DEFB    4, " range"
+			DEFB    5, "variable"
+			DEFB    6, "Out of"
+			DEFB    7, "No "
+			DEFB    8, " space"
+;
 KEYWDL:			EQU     $-KEYWDS
 			DEFW    -1
 ;
