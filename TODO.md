@@ -1,13 +1,16 @@
 # TODO
 ### Next Jobs
 ### Known Bugs / Missing Features
-- Mode 3 (640x256)
-- Cannot COPY characters in Mode 1 or 2
+- Cannot COPY characters in Mode 1, 2 or 3
 - Cannot set RTC by assigning to TIME$
 - Timestamp not set in saved files
 - No attempt to check whether a loaded file will fit in memory
 - The DIR outputs file size in bytes; be good to have human readable units (bytes/KB/MB)
+- Aspect ratio of circle is stretched vertically in MODE 3
 ### Fixed Bugs / New Features
+#### Version 0.11
+- Mode 3 (640x256) added
+- MEMDUMP now displays 16 bytes per line in Mode 3
 #### Version 0.10
 - ESC handled correctly on interrupt
 - ESC now breaks out of GET($) and SOUND command
