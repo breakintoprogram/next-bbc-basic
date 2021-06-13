@@ -2,10 +2,13 @@
 ; Title:	BBC Basic for Spectrum Next - Main build file
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	07/06/2021
+; Last Updated:	11/06/2021
 ;
 ; Notes:
-; To start in CSpect, use the following command line (Mac)
+;
+; This code is no longer compatible with ZEsarUX (version 9.2)
+;
+; To start in CSpect, I recommend using the following command line (Mac)
 ; > mono ECSpect.exe -w4 -basickeys -esc -zxnext -nextrom -tv -16bit -s28 -remote -mmc=cspect-next-2gb.img
 ;
 ; Modinfo:
@@ -18,17 +21,18 @@
 ; 28/05/2021:	Added next_cursor.z80
 ; 04/06/2021:	Added next_sound.z80
 ; 07/06/2021:	Added next_sprites.z80
+; 11/06/2021:	Added equs.z80
 
 			SLDOPT COMMENT WPMEM, LOGPOINT, ASSERTION
 			
 			DEVICE ZXSPECTRUMNEXT		; sjasmplus directive for SAVESNA at end
 
-			DEFINE BUILD_VERSION "0.10"	; Build version
+			DEFINE BUILD_VERSION "0.11"	; Build version
 ;	
 ; Assembly flags
 ;
 BUILD_ROM		EQU	0			; Set to 1 to build a ROM image
-BUILD_EMULATOR		EQU	0			; Set to 1 to build for ZEsarUX; adds various bodges in
+BUILD_EMULATOR		EQU	0			; Set to enable any emulator workarounds
 BUILD_Z80N		EQU	1			; Set to 1 to use Z80N optimized code in R.T.Russell's code
 BUILD_OPT		EQU	1			; Set to 1 to use misc.z80 optimisations in R.T.Russell's code
 ;
@@ -36,16 +40,6 @@ BUILD_OPT		EQU	1			; Set to 1 to use misc.z80 optimisations in R.T.Russell's cod
 ;
 CONF_KEYRPT_1:		EQU	20			; Initial key repeat (50ths of a second)
 CONF_KEYRPT_2:		EQU	5			; Subsequent key repeats (50ths of a second)
-;
-; Emulator bodges 
-;
-			IF	BUILD_EMULATOR = 1	
-ULA_X_SCROLL		EQU	0x32			; ZEsarUX 9.2 incorrectly implements ULA scrolling registers
-ULA_Y_SCROLL		EQU	0x33
-			ELSE
-ULA_X_SCROLL		EQU	0x26			
-ULA_Y_SCROLL		EQU	0x27
-			ENDIF
 ;
 ; Memory map
 ;
@@ -57,6 +51,7 @@ Code_Start		EQU	0x5B00			; Code straight after screen RAM
 			ORG 	Code_Start
 
 			include "macros.z80"		; Useful macros
+			include "equs.z80"		; Common EQUs
 ;
 ; Spectrum Next specific code
 ; 
