@@ -3,10 +3,11 @@
 ;		Spectrum Next Cursor Routines
 ; Author:	Dean Belfield
 ; Created:	28/05/2021
-; Last Updated:	07/06/2021
+; Last Updated:	13/06/2021
 ;
 ; Modinfo:
 ; 07/06/2021:	Move and Display no longer do anything if the cursor is disabled
+; 13/06/2021:	Cursor X now halved for Mode 3
 
 			MODULE	NEXT_CURSOR
 
@@ -34,28 +35,39 @@ Initialise:		Z80PORT	0x303B, Sprite_Cursor	; Select the sprite #
 			DJNZ	4B
 			RET
 
-Offset_XY:		LD	L, A
+; Calculate sprite offset
+; A: Cursor X or Y position
+;
+Offset_X:		LD	L, A 
 			LD	H, 0
+			LD	A, (CHAR_COLS)
+			CP	80
+			JR	Z, 2F
+			JR	1F
+Offset_Y:		LD	L, A			; Multiply by 8
+			LD	H, 0
+1:			ADD	HL, HL
+2:			ADD	HL, HL
 			ADD	HL, HL
-			ADD	HL, HL
-			ADD	HL, HL
-			LD	A, (CHAR_ROWS)
+			LD	A, (CHAR_ROWS)		; Check for 256 column modes
 			CP	32
-			RET	Z 
-			ADD	HL, 32
+			RET	Z 			; Ret if no border
+			ADD	HL, 32			; Offset past border area
 			RET
 
 Move:			LD	A, (FLAGS)		; Don't do anything if the cursor is not visible
 			BIT 	3, A 
 			RET 	Z
 			NEXTREG 0x34, Sprite_Cursor	; Set the sprite #
+			LD	A, (CHAR_COLS)		; Check for 80 column mode
+			CP	80
 			LD	A, (CURSOR_X)		; Get cursor positions
-			CALL	Offset_XY
+			CALL	Offset_X
 			LD	A, L
 			LD	B, H
 			NEXTREG	0x35, A			; LSB of X
 			LD	A, (CURSOR_Y)
-			CALL	Offset_XY
+			CALL	Offset_Y
 			LD	A, L
 			NEXTREG	0x36, A 		; LSB of Y
 			LD	A, B
