@@ -11,6 +11,9 @@ Also, to use file IO, you will need to copy the nex file to the img file and lau
 
 > From Version 0.08 I've had to stop ZEsarUX support due to incompatibility with various new featuers of the Next core. Please use CSpect.
 
+##### 20210613: Version 0.11
+- Fixed bug in check for zero-length lines
+- Mode 3 implemented (640x256, 80 column text)
 ##### 20210609: Version 0.10
 - ESC handled correctly on interrupt (can break out of LIST, for example)
 - ESC now breaks out of GET($) and SOUND command
