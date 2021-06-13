@@ -3,11 +3,12 @@
 ;		Spectrum Next Debug routines
 ; Author:	Dean Belfield
 ; Created:	07/05/2021
-; Last Updated:	08/06/2021
+; Last Updated:	13/06/2021
 ;
 ; Modinfo:
 ; 16/05/2021:	Fixed bug exposed by new VDU routines
 ; 08/06/2021:	ESC now tested using LTRAP in Memory_Dump
+; 13/06/2021:	Double-width output for 80 column mode
 
 			MODULE	NEXT_DEBUG 
 
@@ -24,7 +25,7 @@ Memory_Dump:		LD	A, H
 			PUSH	HL
 			PUSH	DE 
 
-			LD	B, 8
+			CALL	Get_Columns
 1:			LD	A, (HL)
 			CALL 	Print_Hex8
 			INC	HL
@@ -42,7 +43,8 @@ Memory_Dump:		LD	A, H
 3:			POP	DE 
 			POP	HL
 			LD	A, ' ' : CALL NEXT_IO.Print_Char
-			LD	B, 8
+
+			CALL	Get_Columns 
 4:			LD	A, (HL)
 			CALL	Print_ASCII
 			INC	HL 
@@ -58,6 +60,15 @@ Memory_Dump:		LD	A, H
 			CALL	NEXT_IO.Print_Char
 			LD	A, 0x0A 
 			JP	NEXT_IO.Print_Char
+
+; Get # columns to dump
+; 
+Get_Columns:		LD	B, 8
+			LD	A, (CHAR_COLS)
+			CP	80
+			RET	NZ 
+			SLA	B 
+			RET 	
 
 ;  A: Ascii char to print
 ;
