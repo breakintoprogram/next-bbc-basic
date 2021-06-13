@@ -32,7 +32,7 @@ I'm attempting to make this as close to Version 4 of the BBC Basic Standard, res
 
 The code is written to be assembled by the SJASMPLUS assembler. Details of the toolchain I use [can be found here on my website](http://www.breakintoprogram.co.uk/computers/zx-spectrum-next/assembly-language/z80-development-toolchain).
 
-Please note that you will need to set the conditional assembly flag BUILD_EMULATOR to 1 in the file [build.z80](build.z80) if you are assembling this for ZEsarUX. It uses out-of-date register numbers for the ULA hardware scrolling.
+> Please note that from version 0.08 this project is no longer compatible with ZEsarUX (9.2). You will either need to run on CSpect, a Next, or equivalent hardware running a Next core.
 
 Every endeavour will be made to ensure the code is stable and will assemble, yet as this is a work-in-progress done in my spare time there will be instances where this is not the case. Please do not raise an issue in GIT, I'm more than likely aware of this!
 
@@ -56,6 +56,8 @@ The original files are: [eval.z80](eval.z80), [exec.z80](exec.z80), [fpp.z80](fp
 	- A [build.z80](build.z80) file has been added; this includes all other files and is the file to build
 	- All CPMish code has been removed as this version is not going to run on CP/M
 	- A handful of Z80N optimisations have been made. These are marked with a conditional assembly IF/ELSE/ENDIF block, and the original code can be assembled by setting BUILD_Z80N to 0 in the file [build.z80](build.z80).
+- File [main.z80](main.z80)
+	- Improved readability of KEYWDS table
 - File [patch.z80](patch.z80)
 	- The function PUT has been moved into it from [exec.z80](exec.z80)
 	- The function GET has been moved into it from [eval.z80](eval.z80)
@@ -63,11 +65,11 @@ The original files are: [eval.z80](eval.z80), [exec.z80](exec.z80), [fpp.z80](fp
 	- The built-in assembler has bee modified to support Z80N instructions
 	- The assembler opcodes table now uses a macro for sake of clarity
 
-Other than that, that source code is equivalent to the code originally authored by R.T.Russell, downloaded on David Given's website: 
+Other than that, the source code is equivalent to the code originally authored by R.T.Russell, downloaded on David Given's website: 
 
 http://cowlark.com/2019-06-14-bbcbasic-opensource/index.html
 
-The bulk of the Spectrum Next specific code I've written can be found in the z80 files prefixed with "next_". I've clearly commented any changes made to R.T.Russell's original source files in the source code. In addition to the above, I've added the following files: [editor.z80](editor.z80), [macros.z80](macros.z80), [misc.z80](misc.z80) and [rom.z80](rom.z80).
+The bulk of the Spectrum Next specific code I've written can be found in the z80 files prefixed with "next_". I've clearly commented any changes made to R.T.Russell's original source files in the source code. In addition to the above, I've added the following files: [editor.z80](editor.z80), [equs.z80](equs.z80), [macros.z80](macros.z80), [misc.z80](misc.z80) and [rom.z80](rom.z80).
 
 Any additions or modifications I've made to port this to the Next have been released under the same licensing terms as the original code, and code that has been copied or inspired by other sources is clearly marked, with the appropriate accreditations.
 
