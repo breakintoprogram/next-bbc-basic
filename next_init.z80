@@ -3,7 +3,7 @@
 ;		Spectrum Next Initialisation
 ; Author:	Dean Belfield
 ; Created:	04/05/2021
-; Last Updated:	08/06/2021
+; Last Updated:	11/06/2021
 ;
 ; Modinfo:
 ; 13/05/2021:	Added BUILD_VERSION
@@ -15,44 +15,45 @@
 ; 26/05/2021:	Cursor now on interrupt
 ; 04/06/2021:	Intitialises NEXT_SOUND
 ; 08/06/2021:	Test for ESC now done on interrupt
+; 11/06/2021:	Now uses NREG definitions in equs.z80
 
 			MODULE	NEXT_INIT
 
 System:			DI
-			LD 	SP,Stack_Top		; Stick the stack somewhere safe for now
+			LD 	SP,Stack_Top			; Stick the stack somewhere safe for now
 
-			NEXTREG	0x04, 0x03		
-			NEXTREG 0x05, %01110001		; Peripheral 1 settings
-			NEXTREG 0x06, %10101000		; Peripheral 2 settings
-			NEXTREG 0x08, %10011110		; Peripheral 3 settings
-;			NEXTREG	0x09, %00011000		; Peripheral 4 settings
-			NEXTREG	0x03, %10110011		; Machine type - Native Next/128K+3
+			NEXTREG	NREG.CONFIG_MAPPING, 0x03		
+			NEXTREG NREG.PERIPHERAL_1, %01110001	; Peripheral 1 settings
+			NEXTREG NREG.PERIPHERAL_2, %10101000	; Peripheral 2 settings
+			NEXTREG NREG.PERIPHERAL_3, %10011110	; Peripheral 3 settings
+;			NEXTREG	NREG.PERIPHERAL_4, %00011000	; Peripheral 4 settings
+			NEXTREG	NREG.MACHINE_TYPE, %10110011	; Machine type - Native Next/128K+3
 
-			NEXTREG 0x50, 0xFF		; MMU Slot 1 0x0000 - ROM
-			NEXTREG 0x51, 0xFF		; MMU Slot 2 0x2000 - ROM
-			NEXTREG 0x52, 0x0A		; MMU Slot 3 0x4000
-			NEXTREG 0x53, 0x0B		; MMU Slot 4 0x6000
-			NEXTREG 0x54, 0x04		; MMU Slot 5 0x8000
-			NEXTREG 0x55, 0x05		; MMU Slot 6 0xA000
-			NEXTREG 0x56, 0x0E		; MMU Slot 7 0xC000
-			NEXTREG 0x57, 0x0F		; MMU Slot 8 0xE000
+			NEXTREG NREG.MMU_SLOT_1, 0xFF		; MMU Slot 1 0x0000 - ROM
+			NEXTREG NREG.MMU_SLOT_2, 0xFF		; MMU Slot 2 0x2000 - ROM
+			NEXTREG NREG.MMU_SLOT_3, 0x0A		; MMU Slot 3 0x4000
+			NEXTREG NREG.MMU_SLOT_4, 0x0B		; MMU Slot 4 0x6000
+			NEXTREG NREG.MMU_SLOT_5, 0x04		; MMU Slot 5 0x8000
+			NEXTREG NREG.MMU_SLOT_6, 0x05		; MMU Slot 6 0xA000
+			NEXTREG NREG.MMU_SLOT_7, 0x0E		; MMU Slot 7 0xC000
+			NEXTREG NREG.MMU_SLOT_8, 0x0F		; MMU Slot 8 0xE000
 
-			NEXTREG	0x8F, 0x00		; Spectrum Next mapping mode
+			NEXTREG	NREG.MEMORY_MAP_MODE, 0x00	; Spectrum Next mapping mode
 
-			NEXTREG 0x12, 0x09		; Layer 2 RAM bank
-			NEXTREG 0x13, 0x09		; Layer 2 Shadow RAM bank
+			NEXTREG NREG.L2_ACTIVE_RAM, 0x09	; Layer 2 RAM bank
+			NEXTREG NREG.L2_SHADOW_RAM, 0x09	; Layer 2 Shadow RAM bank
 
-			NEXTREG 0x07, 0x00		; CPU to 3.5Mhz
+			NEXTREG NREG.CPU_SPEED, 0x00		; CPU to 3.5Mhz
 
-			NEXTREG 0x43, %00000000		; Select ULA, first palette, not ULANext
+			NEXTREG NREG.PALETTE_CONTROL, %00000000	; Select ULA, first palette, not ULANext
 			
-			Z80PORT	0x1FFD, %00000100	; Page 48K BASIC in
+			Z80PORT	0x1FFD, %00000100		; Page 48K BASIC in
 			Z80PORT 0x7FFD, %00010000
 
 			CALL	Initialise_RAM
-			CALL 	Initialise_Interrupt	; Initialise the interrupt handler
+			CALL 	Initialise_Interrupt		; Initialise the interrupt handler
 
-			XOR	A			; Set the video mode
+			XOR	A				; Set the video mode
 			CALL	NEXT_GRAPHICS.Set_Video_Mode
 			CALL	NEXT_SOUND.Initialise
 			CALL    TELL
