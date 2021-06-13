@@ -3,7 +3,7 @@
 ;		Spectrum Next Graphics Routines
 ; Author:	eeDean Belfield
 ; Created:	06/05/2021
-; Last Updated:	07/06/2021
+; Last Updated:	11/06/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Added Plot modes for Plot_ULA.
@@ -21,6 +21,7 @@
 ; 03/06/2021:	Removed Display_Cursor; Promoted graphics primitives to 16 bit coordinates
 ; 04/06/2021:	Fixed issues with negative coords, scroll offset and clipping in line and triangle
 ; 07/06/2021:	Fixed zero-length line bug; Set_Palette_RGB tweaks; Added Transform_Coordinates
+; 11/06/2021:	Fixed logic to check zero-length lines
 
 			MODULE	NEXT_GRAPHICS 
 
@@ -46,10 +47,14 @@ Clear_Screen:		XOR	A
 Set_Video_Mode:		AND	3
 			LD	(VIDEO_MODE), A
 			PUSH	AF
+			LD	E, 4
+			CP	3
+			JR	NZ, 1F
+			DEC 	E 			; Narrow cursor for Mode 3
+			DEC 	E
+1:			CALL	NEXT_CURSOR.Initialise
 			XOR	A 
 			LD	(BORDER_COLOUR), A
-			LD	E, 4
-			CALL	NEXT_CURSOR.Initialise
 			POP	AF
 			CALL	SWITCH_A
 			DEFW	NEXT_GRAPHICS_ULA.Set_Video_Mode
@@ -354,8 +359,13 @@ Primitive_Line:		PUSH	HL			; Stack Y2
 			LD	BC, -1
 2:			LD	(R02), BC		; Vertical line direction
 ;
+			LD	A,H			; Check for zero length line
+			OR	L 
+			OR	E
+			OR	D 
+			RET	Z
+;
 			CP16	HL, DE			; Work out which diagonal we are on
-			RET 	Z			; It's a zero length line, so do nothing
 			JR	NC, Primitive_Line_Q2	; Height > Width, so jump to Q2
 			EX 	DE, HL			; Swap width and height and use Q1
 ;
@@ -477,7 +487,7 @@ Primitive_Circle:	LD	A, L
 			ADD	DE, A 
 			LD	A, r2
 			ADD	HL, A 
-			CALL	Plot_Point 
+			CALL	Plot_Point
 			LD	HL, (PLOTPOS_X)		; Plot -X, +Y
 			LD	DE, (PLOTPOS_Y)
 			LD	B, 0
@@ -486,7 +496,7 @@ Primitive_Circle:	LD	A, L
 			EX	DE, HL 
 			LD	A, r2
 			ADD	HL, A 
-			CALL	Plot_Point 
+			CALL	Plot_Point
 			LD	DE, (PLOTPOS_X)		; Plot +X, -Y
 			LD	HL, (PLOTPOS_Y)
 			LD	A, r1
@@ -494,7 +504,7 @@ Primitive_Circle:	LD	A, L
 			LD	B, 0
 			LD	C, r2
 			SBC	HL, BC
-			CALL	Plot_Point 
+			CALL	Plot_Point
 			LD	HL, (PLOTPOS_X)		; Plot -X, -Y
 			LD	DE, (PLOTPOS_Y)
 			LD	B, 0
@@ -503,7 +513,7 @@ Primitive_Circle:	LD	A, L
 			EX	DE, HL 
 			LD	C, r2
 			SBC	HL, BC
-			CALL	Plot_Point 
+			CALL	Plot_Point
 			ENDM
 			EXX
 			PLOTC 	IXL, IXH 
