@@ -3,7 +3,7 @@
 ;		Spectrum Next Initialisation
 ; Author:	Dean Belfield
 ; Created:	04/05/2021
-; Last Updated:	11/06/2021
+; Last Updated:	14/06/2021
 ;
 ; Modinfo:
 ; 13/05/2021:	Added BUILD_VERSION
@@ -16,6 +16,7 @@
 ; 04/06/2021:	Intitialises NEXT_SOUND
 ; 08/06/2021:	Test for ESC now done on interrupt
 ; 11/06/2021:	Now uses NREG definitions in equs.z80
+; 14/06/2021:	Setup default (Spectrum) palette for L2 modes
 
 			MODULE	NEXT_INIT
 
@@ -52,6 +53,7 @@ System:			DI
 
 			CALL	Initialise_RAM
 			CALL 	Initialise_Interrupt		; Initialise the interrupt handler
+			CALL	Initialise_Palette
 
 			XOR	A				; Set the video mode
 			CALL	NEXT_GRAPHICS.Set_Video_Mode
@@ -77,6 +79,27 @@ Initialise_RAM:		LD	HL, RAM.Start
 			LD	A, %01000111:	LD (PLOT_COLOUR), A
 			LD	A, "$": 	LD (FDRIVE), A
 			RET
+
+;
+; Initialise the L2 palette
+;
+Initialise_Palette:	LD	HL, Default_Palette
+			LD	B, 16
+			NEXTREG	NREG.PALETTE_CONTROL, %10010000 ; Change L2 first palette
+1:			LD	A, 16
+			SUB	B
+			NEXTREG	NREG.PALETTE_INDEX, A 
+			LD	A, (HL)
+			NEXTREG NREG.PALETTE_VALUE_2, A 
+			INC	HL
+			LD	A, (HL) 
+			NEXTREG NREG.PALETTE_VALUE_2, A
+			INC	HL
+			DJNZ	1B 
+			RET
+;
+Default_Palette:	DW 	0x000,0x102,0x0A0,0x1A2,0x014,0x116,0x0B4,0x1B6
+			DW	0x000,0x103,0x0E0,0x1E7,0x01C,0x11F,0x0FC,0x1FF
 
 ;
 ; Interrupt routine
