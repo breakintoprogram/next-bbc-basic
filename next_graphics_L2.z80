@@ -3,7 +3,7 @@
 ;		Spectrum Next Layer 2 Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	13/05/2021
-; Last Updated:	13/06/2021
+; Last Updated:	14/06/2021
 ;
 ; Modinfo:
 ; 14/05/2021:	Added plot modes
@@ -16,6 +16,7 @@
 ; 04/06/2021:	Point and Triangle now work correctly with scroll offset
 ; 07/06/2021:	Plot modes 1-5 and Point now work correctly; Fixed sprite clipping window & default palette
 ; 13/06/2021:	Now uses NREG definitions in equs.z80; Added Mode 3 graphics and text code
+; 14/06/2021:	Mode 3 screen now cleared correctly; Fixed bug in Clear_Screen; Fixed bug in Draw_Horz_Line_M3
 
 
 			MODULE	NEXT_GRAPHICS_L2
@@ -82,24 +83,35 @@ Set_Video_Mode:		PUSH	AF, BC, DE
 ; Clear the screen
 ;
 Clear_Screen_M1:	LD	B, 3 
+			LD	A, (TEXT_BACKGROUND)
 			JR	Clear_Screen 
 ;
-Clear_Screen_M2:
-Clear_Screen_M3:	LD	B, 5
+Clear_Screen_M2:	LD	A, (TEXT_BACKGROUND)
+			JR	1F
 ;
-Clear_Screen:		LD	A, (BORDER_COLOUR)
+Clear_Screen_M3:	LD	A, (TEXT_BACKGROUND)
+			AND 	0x0F
+			LD	B, A 
+			SWAPNIB
+			OR	B 
+1:			LD	B, 5
+;
+Clear_Screen:		LD	(R00), A		; Stack the fill byte value
+			LD	A, (BORDER_COLOUR)	; Set the border colour
 			OUT 	(254), A
 			NEXTREG	NREG.L2_SCROLL_Y, 0	; Scroll register
+			PUSH	BC			; Stack BC, Z80PORT corrupts it!
 			Z80PORT	0x123B, %00000011	; Enable for memory writes
+			POP	BC
 1:			PUSH	BC
 			LD	A, B 
 			DEC	A 
 			OR	%00010000		; Set to page relative to current page
 			Z80PRTA	0x123B
-			LD	A, (TEXT_BACKGROUND)
-			LD	DE,0x0000
-			LD	BC,0x4000
-			CALL	NEXT_DMA.FillDMA
+			LD	A, (R00)		; The fill byte value
+			LD	DE,0x0000		; Screen RAM is paged into ROM area
+			LD	BC,0x4000		; 16K in size
+			CALL	NEXT_DMA.FillDMA	; Clear it
 			POP	BC
 			DJNZ	1B
 			Z80PORT	0x123B, %00000010	; Disable memory writes
@@ -535,6 +547,8 @@ Draw_Horz_Line_M3:	CALL	Adjust_SCRLPOS_P
 1:			SUB	HL, DE 			; HL: Line length
 			EX	(SP), HL 		; Swap with Y coordinate on stack
 			CALL	Get_Pixel_Address_M3
+			POP	BC			; Restore the loop counter
+			INC	BC
 			JR	NC, 2F			; If we're on even boundary then fine
 ;
 			LD	A, (PLOT_COLOUR)	; Get the plot colour
@@ -547,6 +561,7 @@ Draw_Horz_Line_M3:	CALL	Adjust_SCRLPOS_P
 			INC	H
 			BIT	6, H
 			CALL	NZ, Next_Bank_M2M3
+			DEC	BC
 ;
 2:			LD	A, (PLOT_COLOUR)	; Get the plot colour
 			AND	0x0F
@@ -555,7 +570,7 @@ Draw_Horz_Line_M3:	CALL	Adjust_SCRLPOS_P
 			OR	D 
 			LD	D, A 			; D: Plot colour
 ;
-			POP	BC			; Restore the loop counter
+;			POP	BC			; Restore the loop counter
 			SRL	B			; Divide by 2		
 			RR	C
 			PUSH	AF			; Stack the carry bit
