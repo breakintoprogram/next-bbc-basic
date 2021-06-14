@@ -1,16 +1,22 @@
 
 # releases
 
-These releases are compiled on an ad-hoc basis and have been tested on the MiSTer Next core, ZEsarUX emulator (9.2) and CSpect (2.13.01)
+These releases are compiled on an ad-hoc basis and have been tested on the MiSTer Next core, ZEsarUX emulator (9.2) and CSpect (2.14.03)
 
 #### Using with ZEsarUX
 
-Please use the nex file that ends in "_em"; this binary is assembled slightly differently to get around some bugs in the emulator, namely ULA hardware scrolling.
+Please note that version 9.2 of ZEsarUX is missing a couple of features that have been introduced into later cores that prevent my software from working correctly. The first is ULA scrolling; There is a workaround for that, and files with names ending in "_em.nxx" have been assembled with that.
 
-Also, to use file IO, you will need to copy the nex file to the img file and launch from the Next browser. The esxDOS file system is not initialised properly if the nex file is dragged into the emulator or loaded using Smart Load.
+The other affects the Layer 2 access port 0x123B; there is a new mode (built into Core 3.0.7) that adds a relative offset to Layer 2 screen paging. There is no workaround for that, so from version 0.08 I've only assembled a regular nex file that will work on CSpect and Next compatible hardware. 
 
-> From Version 0.08 I've had to stop ZEsarUX support due to incompatibility with various new featuers of the Next core. Please use CSpect.
+Note that the author of ZEsarUX has tested fixes for those omissions, and they should be included in the next release of ZEsarUX.
 
+Finally, you will need to copy the nex file to the img file and launch from the Next browser. ZEsarUX does not initialise the Next if the nex file is dragged into the emulator or loaded using Smart Load. This is by design, but will prevent the disk commands from working. I would recommend this method anyway.
+
+##### 202106??: Version 0.12
+- Fixed bugs in Clear_Screen:
+	- Background colour now set correctly in Mode 3
+	- It was clearing 18 16K banks rather than 3 (Mode 1) or 5 (Mode 2 or 3)
 ##### 20210613: Version 0.11
 - Fixed bug in check for zero-length lines
 - Mode 3 implemented (640x256, 80 column text)
