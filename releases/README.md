@@ -18,6 +18,7 @@ Finally, you will need to copy the nex file to the img file and launch from the 
 	- Background colour now set correctly in Mode 3
 	- It was clearing 18 16K banks rather than 3 (Mode 1) or 5 (Mode 2 or 3)
 - Fixed bug in Mode 3 horizontal line routine (for filled triangles)
+- Modes 1, 2 and 3 now have a Spectrum palette in first 16 colours
 ##### 20210613: Version 0.11
 - Fixed bug in check for zero-length lines
 - Mode 3 implemented (640x256, 80 column text)
