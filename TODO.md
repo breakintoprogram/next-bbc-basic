@@ -7,7 +7,12 @@
 - No attempt to check whether a loaded file will fit in memory
 - The DIR outputs file size in bytes; be good to have human readable units (bytes/KB/MB)
 - Aspect ratio of circle is stretched vertically in MODE 3
+- GCOL modes not working for Plot in Mode 3
+- GCOL modes not working for filled triangles
+- Set all graphics to use common viewport (1280x1024) with origin at bottom left, like BBC Micro
 ### Fixed Bugs / New Features
+#### Version 0.12
+- Mode 3 - horizontal line not quite working (see circles.bbc, gaps in circle at end of draw)
 #### Version 0.11
 - Mode 3 (640x256) added
 - MEMDUMP now displays 16 bytes per line in Mode 3
