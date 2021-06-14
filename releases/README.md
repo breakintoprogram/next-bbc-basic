@@ -13,10 +13,11 @@ Note that the author of ZEsarUX has tested fixes for those omissions, and they s
 
 Finally, you will need to copy the nex file to the img file and launch from the Next browser. ZEsarUX does not initialise the Next if the nex file is dragged into the emulator or loaded using Smart Load. This is by design, but will prevent the disk commands from working. I would recommend this method anyway.
 
-##### 202106??: Version 0.12
+##### 20210614: Version 0.12
 - Fixed bugs in Clear_Screen:
 	- Background colour now set correctly in Mode 3
 	- It was clearing 18 16K banks rather than 3 (Mode 1) or 5 (Mode 2 or 3)
+- Fixed bug in Mode 3 horizontal line routine (for filled triangles)
 ##### 20210613: Version 0.11
 - Fixed bug in check for zero-length lines
 - Mode 3 implemented (640x256, 80 column text)
