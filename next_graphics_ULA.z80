@@ -3,7 +3,7 @@
 ;		Spectrum Next ULA Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	13/05/2021
-; Last Updated:	11/06/2021
+; Last Updated:	21/06/2021
 ;
 ; Modinfo:
 ; 15/05/2021:	Plot now pulls PLOT_MODE and PLOT_COLOUR direct from RAM; Updates for MODE command
@@ -17,6 +17,7 @@
 ; 06/06/2021:	CLS now uses DMA
 ; 08/06/2021:	Fixed default palette and reset sprite clipping
 ; 11/06/2021:	Now uses NREG definitions in equs.z80
+; 21/06/2021:	Added support for CLG; Tweaks to Get_Char
 
 			MODULE	NEXT_GRAPHICS_ULA
 
@@ -33,7 +34,7 @@ Set_Video_Mode:		LD	A, %01000111
 			LD	(PIXEL_WIDTH), BC 
 			LD	BC, 192 
 			LD	(PIXEL_HEIGHT), BC
-			CALL	NEXT_GRAPHICS.Clear_Screen
+			CALL	NEXT_GRAPHICS.CLS
 			NEXTREG NREG.LAYER_CONTROL, %00101001	; Enable sprites & clipping, SUL priority
 			NEXTREG	NREG.L2_CONTROL, %00000000	; Reset Layer 2 resolution
 			NEXTREG	NREG.CLIP_WINDOW_L2, 0		
@@ -48,14 +49,18 @@ Set_Video_Mode:		LD	A, %01000111
 			RET	
 
 ; Clear the screen
+; Used by CLS and CLG
+; C: Colour to clear screen with
 ;
 Clear_Screen:		LD	A, (BORDER_COLOUR)
 			OUT	(254), A
+			LD	A, C 
+			LD	(R00), A
 			XOR	A
 			LD	DE, 16384
 			LD	BC, 6144
 			CALL	NEXT_DMA.FillDMA
-			LD	A, (TEXT_FOREGROUND)
+			LD	A, (R00)
 			LD	DE, 22528
 			LD	BC, 768
 			CALL	NEXT_DMA.FillDMA
@@ -118,41 +123,21 @@ Print_Char:		CALL 	Get_Char_Address
 			LD	(HL), A
 			RET
 
-; Gets the ASCII code of a chararcter on-screen
-;  L: X Coordinate
-;  H: Y Coordinate
+; Scrape character off screen
+;  L: X coordinate
+;  H: Y coordinate
 ; Returns:
-;  A: ASCII character, or 0xFF if no match
-;  F: C if character match, otherwise NC
+; R00 to R07: Character data in monochrome bitmap format
 ;
 Get_Char:		CALL	Get_Char_Address	; Get character address in HL
-			LD	DE, 0x3D00		; Start of system font
-			LD	C, 32 			; ASCII code
-0:			LD	B, 8			; Row counter
-			PUSH	DE 			; Push the character address
-			PUSH	HL			; And the screen address
-1:			LD	A, (DE)			; Get first row from charset
-			CP	(HL)			; Compare it with screen
-			JR	NZ, 2F			; If there is a mismatch, skip..
-			INC	H			; Next row on screen
-			INC 	DE			; Next row of system font
-			DJNZ	1B
-			POP	HL			; Pop the screen address
-			POP	DE			; Pop the character address
-			LD	A, C			; At this point we have a match
-			SCF
-			RET				; Return the character, Z flag set
-2:			POP	HL			; Pop the screen address
-			POP	DE			; Pop the character address
-			INC	C			; Increment character #
-			BIT	7, C 			; If we've reached character 128
-			JR 	NZ, 3F			; Then ret wih Z flag not set
-			LD	A, 8 
-			ADD	DE, A 			; Advance 8 bytes to next character in system font
-			JR	0B			; Lather, rinse and repeat
-3:			XOR	A 			; Clear carry flag and
-			INC	A			; Set A to 0xFF
-			RET 
+			LD	DE, R00			; Storage for bitmap data
+			LD	B, 8 
+1:			LD	A, (HL)
+			LD	(DE), A 
+			INC	H
+			INC	E 
+			DJNZ	1B 
+			RET
 
 ; Get screen address
 ;  H: Y character position
@@ -345,22 +330,22 @@ Plot_Line_RHS:		DB %10000000,%11000000,%11100000,%11110000,%11111000,%11111100,%
 ; Returns:
 ;  A: New attribute value
 ;
-Get_Attr_Value:		BIT	7, C		; Check bit 7 of the new colour
-			JR	Z, 1F		; for numbers >=128
-			AND	%11000111	; And out the PAPER colour
-			LD	B, A		; Store in B
+Get_Attr_Value:		BIT	7, C			; Check bit 7 of the new colour
+			JR	Z, 1F			; for numbers >=128
+			AND	%11000111		; And out the PAPER colour
+			LD	B, A			; Store in B
 			LD	A, C 
-			AND	%00000111	; Get colour
-			RLA 			; Shift into position
+			AND	%00000111		; Get colour
+			RLA 				; Shift into position
 			RLA 
 			RLA 
-			OR	B 		; Or with existing colour
+			OR	B 			; Or with existing colour
 			RET
-1:			AND	%11111000	; And out the INK colour
-			LD	B, A		; Store in B
+1:			AND	%11111000		; And out the INK colour
+			LD	B, A			; Store in B
 			LD	A, C 
-			AND	%00000111	; Get colour
-			OR	B 		; Or with existing colour
+			AND	%00000111		; Get colour
+			OR	B 			; Or with existing colour
 			RET
 
 ; Set the graphics colour
@@ -377,6 +362,11 @@ Set_Plot_Colour:	LD	HL, PLOT_COLOUR
 ;  B: Mode
 ;
 Set_Text_Colour:	LD	HL, TEXT_FOREGROUND
+			CALL	Set_Attr
+			LD	A, (HL)
+			LD	(TEXT_BACKGROUND), A 	; For CLS
+			RET
+;			
 Set_Attr:		LD 	A, B
 			CP	6
 			RET	NC

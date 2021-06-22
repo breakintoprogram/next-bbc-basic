@@ -3,7 +3,7 @@
 ;		Spectrum Next Graphics Routines
 ; Author:	eeDean Belfield
 ; Created:	06/05/2021
-; Last Updated:	11/06/2021
+; Last Updated:	21/06/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Added Plot modes for Plot_ULA.
@@ -22,6 +22,8 @@
 ; 04/06/2021:	Fixed issues with negative coords, scroll offset and clipping in line and triangle
 ; 07/06/2021:	Fixed zero-length line bug; Set_Palette_RGB tweaks; Added Transform_Coordinates
 ; 11/06/2021:	Fixed logic to check zero-length lines
+; 15/06/2021:	Set screen window and origin as per BBC (1280x1024, bottom left = 0,0)
+; 21/06/2021:	Added support for CLG and Get_Char (Modes 1 to 3)
 
 			MODULE	NEXT_GRAPHICS 
 
@@ -30,7 +32,11 @@
 
 ; Clear the screen
 ;
-Clear_Screen:		XOR	A 
+CLG:			LD	A, (PLOT_COLOUR)
+			JR 	1F
+CLS:			LD	A, (TEXT_BACKGROUND)
+1:			LD	C, A
+			XOR	A 
 			LD	(SCRLPOS_Y), A 
 			LD	(CHARPOS_X), A 
 			LD	(CHARPOS_Y), A
@@ -55,6 +61,10 @@ Set_Video_Mode:		AND	3
 1:			CALL	NEXT_CURSOR.Initialise
 			XOR	A 
 			LD	(BORDER_COLOUR), A
+			LD	L, A 
+			LD	H, A 
+			LD	(PLOTORG_X), HL 
+			LD	(PLOTORG_Y), HL
 			POP	AF
 			CALL	SWITCH_A
 			DEFW	NEXT_GRAPHICS_ULA.Set_Video_Mode
@@ -135,6 +145,52 @@ Set_Scroll_Reg:		LD	(SCRLPOS_Y), A
 			DEFW	NEXT_GRAPHICS_L2.Set_Scroll_Reg
 			DEFW	NEXT_GRAPHICS_L2.Set_Scroll_Reg
 
+; Get a character off screen
+;  L: X coordinate
+;  H: Y coordinate
+; Returns:
+;  A: ASCII character, or 0xFF if no match
+;  F: C if character match, otherwise NC
+;
+Get_Char:		CALL	Get_Char_1		; Get character data in R00 to R07
+			LD	DE, 0x3D00		; Start of system font
+			LD	C, 32 			; ASCII code
+0:			LD	B, 8			; Row counter
+			PUSH	DE 			; Push the character address
+			LD	HL, R00			; Character data read from screen
+1:			LD	A, (DE)			; Get first row from charset
+			CP	(HL)			; Compare it with screen
+			JR	NZ, 2F			; If there is a mismatch, skip..
+			INC	L			; Next row of character
+			INC 	DE			; Next row of system font
+			DJNZ	1B
+			POP	DE			; Pop the character address
+			LD	A, C			; At this point we have a match
+			SCF
+			RET				; Return the character, Z flag set
+2:			POP	DE			; Pop the character address
+			INC	C			; Increment character #
+			BIT	7, C 			; If we've reached character 128
+			JR 	NZ, 3F			; Then ret wih Z flag not set
+			ADD	DE, 8 			; Advance 8 bytes to next character in system font
+			JR	0B			; Lather, rinse and repeat
+3:			XOR	A 			; Clear carry flag and
+			INC	A			; Set A to 0xFF
+			RET 
+
+; Scrape character data off screen into an 8x8 1-bit format regardless of mode
+;  L: X coordinate
+;  H: Y coordinate
+; Returns:
+; R00 to R07: Character data
+;
+Get_Char_1:		LD	A, (VIDEO_MODE)
+			CALL	SWITCH_A
+			DEFW	NEXT_GRAPHICS_ULA.Get_Char
+			DEFW	NEXT_GRAPHICS_L2.Get_Char_M1
+			DEFW	NEXT_GRAPHICS_L2.Get_Char_M2
+			DEFW	NEXT_GRAPHICS_L2.Get_Char_M3
+
 ; Print a single character out to an X/Y position
 ;  A: Character to print
 ;  L: X Coordinate
@@ -147,18 +203,6 @@ Print_Char:		LD	E, A
 			DEFW 	NEXT_GRAPHICS_L2.Print_Char_M1
 			DEFW 	NEXT_GRAPHICS_L2.Print_Char_M2
 			DEFW 	NEXT_GRAPHICS_L2.Print_Char_M3
-
-; Gets the ASCII code of a chararcter on-screen
-;  L: X Coordinate
-;  H: Y Coordinate
-; Returns ASCII in A
-;
-Get_Char:		LD	A, (VIDEO_MODE)
-			CALL	SWITCH_A
-			DEFW 	NEXT_GRAPHICS_ULA.Get_Char
-			DEFW	NEXT_GRAPHICS_L2.Get_Char
-			DEFW	NEXT_GRAPHICS_L2.Get_Char
-			DEFW	NEXT_GRAPHICS_L2.Get_Char
 
 ; Boundary check
 ; DE: X
@@ -180,44 +224,81 @@ Pixel_Bounds_Check:	LD	A, D			; If either of the high bytes
 			EX	DE, HL
 			RET	
 
-; Scale X and Y coordinates (experimental)
-; DE: X (0 to 1279) -> (0 to 255)
-; HL: Y (0 to 1023) -> (0 to 191)
+; Scale X and Y coordinates
+; DE: X (0 to 1279) -> (0 to 255/320/640)
+; HL: Y (0 to 1023) -> (0 to 191/256)
 ; 
-Transform_Coordinates:	PUSH	HL  		; Stack Y
-			PUSH	DE		; Stack X
-			XOR	A		
-			LD	H, A
-			LD	L, A
-			LD 	D, A
-			LD	E, A
-			LD	B, A 
-			LD	C, A
-			EXX
-			LD	H, A 
-			LD	L, A
-			POP	DE		;  DE: Dividend - X coordinate
-			LD	BC, 5		;  BC: Divisor  - 5
-			LD	A, -33
-			CALL 	FPP.DIVA	;  DE: Answer
-			EX	DE, HL		;  HL: Answer
+Transform_Coords:	LD	BC, (PLOTORG_Y)	; Add the plot origin to Y
+			ADD	HL, BC 
+			EX	DE, HL 
+			LD	BC, (PLOTORG_X)	; And to X
+			ADD	HL, BC
+			EX	DE, HL
+			LD	A, (VIDEO_MODE)
+			CALL	SWITCH_A 
+			DEFW 	Transform_Coords_256
+			DEFW 	Transform_Coords_256
+			DEFW 	Transform_Coords_320
+			DEFW 	Transform_Coords_640
 ;
+Transform_Coords_320:	SRA	D
+			RR	E
+;
+Transform_Coords_640:	SRA	D 
+			RR 	E 
+			LD	B, H 
+			LD	C, L
+			LD	HL, 1023 
+			SUB	HL, BC
+			SRA	H
+			RR	L
+			SRA	H 
+			RR	L
+			RET
+;
+Transform_Coords_256:	PUSH	HL  		; Stack Y
+			LD	BC, 5		; BC'BC: Divisor (5.0)
+			EXX
+			LD	BC, 0 
+			CALL	Transform_Div
+			EX	DE, HL		; HL: Answer
 			EX	(SP), HL	; HL': Y (DE -> STACK)
 			EX	DE, HL		; DE': Dividend - Y coordinate
-			XOR	A
-			LD	H, A	
-			LD	L, A
-			LD	BC, 5		; BC': Divisor - 5.
+			LD	HL, 1023
+			SUB	HL, DE
+			EX	DE, HL		; DE': Dividen - 1023 - Y coordinate
+			LD	BC, 5		; BC'BC: Divisor (5.3)
 			EXX
-			LD	H,A 
+			LD	BC, 21845
+			CALL	Transform_Div
+			EX	DE, HL		; HL: Y
+			POP	DE		; DE: X
+			RET
+
+; Coordinate Division
+;    DE: Dividend
+; BC'BC: Divisor
+; Returns:
+;    DE: Answer
+;
+Transform_Div:		EXX
+			BIT	7, D 
+			PUSH	AF
+			JR	Z, 1F
+			NEG16	DE
+1:			XOR	A 
+			LD	H, A 
+			LD	L, A	
+			EXX	
+			LD	H, A 
 			LD	L, A 
 			LD	D, A 
 			LD	E, A
-			LD	BC, 21845	;  BC: Divisor - .3
 			LD	A, -33
-			CALL 	FPP.DIVA	;  DE: Answer
-			EX	DE, HL		;  HL: Y
-			POP	DE		;  DE: X
+			CALL	FPP.DIVA
+			POP	AF 
+			RET 	Z
+			NEG16	DE
 			RET
 
 ; POINT(x,y)
@@ -276,10 +357,12 @@ Plot_Line:		JP	Primitive_Line
 ; DE: X: Ignored
 ; HL: Y: Radius
 ;
-Plot_Circle:		LD	A, H 
-			OR	A
-			RET	NZ
-			JP	Primitive_Circle
+Plot_Circle:		LD	DE, (PIXEL_HEIGHT)
+			EX	DE, HL 
+			SUB	HL, DE 
+			BIT	7, H
+			CALL	Z, Primitive_Circle
+			RET
 
 ; Plot a filled triangle
 ; First and second points in PLOTPRE and PLOTPOS

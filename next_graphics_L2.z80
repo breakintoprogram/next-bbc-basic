@@ -3,7 +3,7 @@
 ;		Spectrum Next Layer 2 Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	13/05/2021
-; Last Updated:	14/06/2021
+; Last Updated:	21/06/2021
 ;
 ; Modinfo:
 ; 14/05/2021:	Added plot modes
@@ -17,6 +17,7 @@
 ; 07/06/2021:	Plot modes 1-5 and Point now work correctly; Fixed sprite clipping window & default palette
 ; 13/06/2021:	Now uses NREG definitions in equs.z80; Added Mode 3 graphics and text code
 ; 14/06/2021:	Mode 3 screen now cleared correctly; Fixed bug in Clear_Screen; Fixed bug in Draw_Horz_Line_M3
+; 21/06/2021:	Added support for Get_Char and CLG
 
 
 			MODULE	NEXT_GRAPHICS_L2
@@ -62,7 +63,7 @@ Set_Video_Mode:		PUSH	AF, BC, DE
 			ADD	HL, HL 
 			ADD	HL, HL
 			LD	(PIXEL_HEIGHT), HL
-			CALL	NEXT_GRAPHICS.Clear_Screen
+			CALL	NEXT_GRAPHICS.CLS
 			POP	DE, BC, AF
 			NEXTREG NREG.L2_CONTROL, A
 			LD	A, E
@@ -81,22 +82,24 @@ Set_Video_Mode:		PUSH	AF, BC, DE
 
 
 ; Clear the screen
+; Used by CLS and CLG
+; C: Colour to clear screen with
 ;
 Clear_Screen_M1:	LD	B, 3 
-			LD	A, (TEXT_BACKGROUND)
-			JR	Clear_Screen 
+			LD	A, C 
+			JR	Clear_Screen
 ;
-Clear_Screen_M2:	LD	A, (TEXT_BACKGROUND)
+Clear_Screen_M2:	LD	A, C 
 			JR	1F
-;
-Clear_Screen_M3:	LD	A, (TEXT_BACKGROUND)
+
+Clear_Screen_M3:	LD	A, C
 			AND 	0x0F
 			LD	B, A 
 			SWAPNIB
 			OR	B 
 1:			LD	B, 5
 ;
-Clear_Screen:		LD	(R00), A		; Stack the fill byte value
+Clear_Screen:		LD	(R00), A 		; Store the colour
 			LD	A, (BORDER_COLOUR)	; Set the border colour
 			OUT 	(254), A
 			NEXTREG	NREG.L2_SCROLL_Y, 0	; Scroll register
@@ -273,12 +276,100 @@ Get_Colour_Nibbles:	LD	A, B
 			LD	(R02), A 		; R2: FB
 			RET 
 
-; Gets the ASCII code of a chararcter on-screen
-;  L: X Coordinate
-;  H: Y Coordinate
-; Returns ASCII in A
+; Scrape character off screen
+;  L: X coordinate
+;  H: Y coordinate
+; Returns:
+; R00 to R07: Character data in monochrome bitmap format
 ;
-Get_Char:		RET
+Get_Char_M1:		CALL	Get_Char_Address_M1	; Screen address in HL
+			Z80PORT	0x123B, %00000110	; Enable memory read only (to read screen data)
+			LD 	DE, R00
+			LD	B, 8
+1:			PUSH	BC
+			PUSH	HL
+			LD	B, 8
+			LD	C, 0
+2: 			LD	A, (TEXT_FOREGROUND)
+			CP	(HL)
+			JR	NZ, 3F
+			SET	7, C 
+3:			RLC	C
+			INC 	L
+			DJNZ	2B
+			LD	A, C 
+			POP	HL
+			POP	BC
+			LD	(DE), A
+			INC	E
+			INC	H
+			DJNZ	1B
+			Z80PORT	0x123B, %00000010	; Disable memory read/write (ready to read ROM charset)
+			RET 
+;
+Get_Char_M2:		CALL	Get_Char_Address_M2	; Screen address in HL
+			Z80PORT	0x123B, %00000110	; Enable memory read only (to read screen data)
+			LD 	DE, R00
+			LD	B, 8
+1:			PUSH	BC
+			PUSH	HL
+			LD	B, 8
+			LD	C, 0
+2: 			LD	A, (TEXT_FOREGROUND)
+			CP	(HL)
+			JR	NZ, 3F
+			SET	7, C 
+3:			RLC	C
+			INC 	H
+			DJNZ	2B
+			LD	A, C 
+			POP	HL
+			POP	BC
+			LD	(DE), A
+			INC	E
+			INC	L
+			DJNZ	1B
+			Z80PORT	0x123B, %00000010	; Disable memory read/write (ready to read ROM charset)
+			RET 
+;
+Get_Char_M3:		CALL	Get_Char_Address_M3
+			Z80PORT	0x123B, %00000110	; Enable memory read only (to read screen data)
+			LD 	DE, R00
+			LD	B, 8
+1:			PUSH	BC
+			PUSH	DE
+			PUSH	HL
+			LD	B, 4
+			LD	C, 0
+			LD	A, (TEXT_FOREGROUND)
+			AND	0x0F
+			LD	E, A
+			SWAPNIB
+			LD	D, A 
+2:			LD	A, (HL)
+			AND	0xF0
+			CP	D 
+			JR	NZ, 3F
+			SET	7, C 
+3:			RLC	C
+			LD	A, (HL)
+			AND	0x0F
+			CP	E 
+			JR	NZ, 4F 
+			SET	7, C 
+4:			RLC	C
+			INC 	H
+			DJNZ	2B
+			LD	A, C 
+			POP	HL
+			POP	DE
+			POP	BC
+			LD	(DE), A
+			INC	E
+			INC	L
+			DJNZ	1B
+			Z80PORT	0x123B, %00000010	; Disable memory read/write (ready to read ROM charset)
+			RET 		
 
 ; Get screen address
 ;  H = Y character position
