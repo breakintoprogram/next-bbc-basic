@@ -6,7 +6,7 @@
 ; Author:	(C) Copyright  R.T.Russell 31-12-1983
 ; Modified By:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	04/06/2021
+; Last Updated:	15/06/2021
 ;
 ; Modinfo:
 ; 02/05/2021:	Modified by Dean Belfield to assemble with SJASMPLUS
@@ -21,6 +21,7 @@
 ; 26/05/2021:	Added CHAR_COLS, CHAR_ROWS
 ; 28/05/2021:	Added PIXEL_WIDTH, PIXEL_HEIGHT and Rnn variables
 ; 04/06/2021:	Added AY buffers
+; 15/06/2021:	Added PLOTORG_X and PLOTORG_Y
 
 			MODULE RAM
 
@@ -118,6 +119,8 @@ Start:			EQU 	$
 @CURSOR_Y:		DEFS	1
 @CHARPOS_X:		DEFS	1		; Current character position on screen
 @CHARPOS_Y:		DEFS	1
+@PLOTORG_X:		DEFS	2		; Plot origin
+@PLOTORG_Y:		DEFS	2
 @PLOTPRE_X:		DEFS	2 		; Previous plot position
 @PLOTPRE_Y:		DEFS	2
 @PLOTPOS_X:		DEFS	2		; Current plot position on screen
