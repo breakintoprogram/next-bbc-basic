@@ -3,7 +3,7 @@
 ;		Spectrum Next I/O Routines
 ; Author:	Dean Belfield
 ; Created:	03/05/2021
-; Last Updated:	26/05/2021
+; Last Updated:	21/06/2021
 ;
 ; Modinfo:
 ; 10/05/2021:	Started implementing VDU engine
@@ -17,6 +17,8 @@
 ; 20/05/2021:	Print_Char now preserves IX
 ; 21/05/2021:	Fixed debounce for EDIT and CAPS LOCK and added key repeat
 ; 26/05/2021:	Added support code for Layer 2 modes 2 and 3
+; 16/06/2021:	Added VDU_GS (Set graphics origin)
+; 21/06/2021:	Added VDU_DLE (CLG)
 
 			MODULE	NEXT_IO
 
@@ -188,6 +190,7 @@ VDU_READ_BYTES:		LD	IX, VDU_STATE		; Indexes - 0: STATE, 1: PTR, 2: COUNT
 			DEFW	VDU_EXEC_GCOL 
 			DEFW	VDU_EXEC_TAB 
 			DEFW	VDU_EXEC_MODE
+			DEFW	VDU_EXEC_GORIGIN
 
 ; Handle all control characters
 ;  A: Character code
@@ -210,7 +213,7 @@ VDU_CTRL_CHAR:		CALL	SWITCH_A
 			DW	VDU_CR			; &0D CR  - Move cursor to start of current line
 			DW	VDU_NUL			; &0E SO  - Page mode on
 			DW	VDU_NUL			; &0F SI  - Page mode off
-			DW	VDU_NUL			; &10 DLE - Clear graphcs area (CLG)
+			DW	VDU_DLE			; &10 DLE - Clear graphcs area (CLG)
 			DW	VDU_DC1			; &11 DC1 - Define text colour (COLOUR n)
 			DW	VDU_DC2			; &12 DC2 - Define graphics colour (GCOL a, n)
 			DW	VDU_DC3			; &13 DC3 - Define logical colour (COLOUR l, r, g, b)
@@ -223,7 +226,7 @@ VDU_CTRL_CHAR:		CALL	SWITCH_A
 			DW	VDU_NUL			; &1A SUB - Restore default windows
 			DW	VDU_NUL			; &1B ESC - Does nothing
 			DW	VDU_NUL			; &1C FS  - Define text window
-			DW	VDU_NUL			; &1D GS  - Define graphics origin (ORIGIN)
+			DW	VDU_GS			; &1D GS  - Define graphics origin (ORIGIN)
 			DW	VDU_RS			; &1E RS  - Home
 			DW	VDU_US			; &1F US  - Move text cursor to X, Y (PRINT TAB(x,y));
 
@@ -283,7 +286,7 @@ VDU_VT:			LD	A, (CHARPOS_Y)
 
 ; &0C FF  - CLS
 ;
-VDU_FF:			JP 	NEXT_GRAPHICS.Clear_Screen
+VDU_FF:			JP 	NEXT_GRAPHICS.CLS
 
 
 ; &0D CR  - Carriage Return
@@ -291,6 +294,10 @@ VDU_FF:			JP 	NEXT_GRAPHICS.Clear_Screen
 VDU_CR:			XOR	A 
 			LD 	(CHARPOS_X), A
 			RET 
+
+; &10 DLE - CLG
+;
+VDU_DLE:		JP	NEXT_GRAPHICS.CLG
 
 ; &11 DC1 - COLOUR n
 ;
@@ -323,6 +330,12 @@ VDU_ETB:		RET
 ;
 VDU_EM:			LD	B, 5			; 5 bytes (mode, xl, xh, yl, yh)
 			LD	A, 1			; State 1: PLOT
+			JR	VDU_SET_STATE
+
+; &1D GS - Graphics Origin
+;
+VDU_GS:			LD	B, 4			; 4 bytes (OX, OY)
+			LD	A, 6			; State 6: GORIGIN
 			JR	VDU_SET_STATE
 
 ; &1E RS  - HOME
@@ -400,6 +413,14 @@ VDU_EXEC_TAB:		LD	A, (VDU_BUFFER + 0)
 ;
 VDU_EXEC_MODE:		LD	A, (VDU_BUFFER + 0)
 			JP 	NEXT_GRAPHICS.Set_Video_Mode
+
+; Set graphics origin
+; 
+VDU_EXEC_GORIGIN:	LD	HL, (VDU_BUFFER + 0)
+			LD	(PLOTORG_X), HL 
+			LD	HL, (VDU_BUFFER + 2)
+			LD	(PLOTORG_Y), HL 
+			RET 
 
 ; Scan the keyboard
 ; A modified version of the ZX Spectum 48K rom routine
