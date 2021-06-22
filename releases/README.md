@@ -5,7 +5,7 @@ These releases are compiled on an ad-hoc basis and have been tested on the MiSTe
 
 #### Using with ZEsarUX
 
-Please note that version 9.2 of ZEsarUX is missing a couple of features that have been introduced into later cores that prevent my software from working correctly. The first is ULA scrolling; There is a workaround for that, and files with names ending in "_em.nxx" have been assembled with that.
+Please note that version 9.2 of ZEsarUX is missing a couple of features that have been introduced into later cores that prevent my software from working correctly. The first is ULA scrolling; There is a workaround for that, and files with names ending in "_em.nex" have been assembled with that.
 
 The other affects the Layer 2 access port 0x123B; there is a new mode (built into Core 3.0.7) that adds a relative offset to Layer 2 screen paging. There is no workaround for that, so from version 0.08 I've only assembled a regular nex file that will work on CSpect and Next compatible hardware. 
 
@@ -13,10 +13,16 @@ Note that the author of ZEsarUX has tested fixes for those omissions, and they s
 
 Finally, you will need to copy the nex file to the img file and launch from the Next browser. ZEsarUX does not initialise the Next if the nex file is dragged into the emulator or loaded using Smart Load. This is by design, but will prevent the disk commands from working. I would recommend this method anyway.
 
+##### 20210622: Version 0.13
+- COPY characters now works in Modes 1, 2 and 3
+- Set all graphics to use common viewport (1280x1024) with origin at bottom left, like BBC Micro
+- Added support for VDU 19 (setting the graphics origin)
+- CLG now works
 ##### 20210614: Version 0.12
 - Fixed bugs in Clear_Screen:
 	- Background colour now set correctly in Mode 3
 	- It was clearing 18 16K banks rather than 3 (Mode 1) or 5 (Mode 2 or 3)
+	- CLG now works
 - Fixed bug in Mode 3 horizontal line routine (for filled triangles)
 - Modes 1, 2 and 3 now have a Spectrum palette in first 16 colours
 ##### 20210613: Version 0.11
