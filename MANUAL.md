@@ -105,11 +105,13 @@ The VDU command is a work-in-progress with a handful of mappings implemented:
 - `VDU 11` Move cursor up one line
 - `VDU 12` CLS
 - `VDU 13` Carriage return
+- `VDU 16` CLG
 - `VDU 17,col` COLOUR col
 - `VDU 18,mode,col` GCOL mode,col
 - `VDU 19,l,r,g,b` COLOUR l,r,g,b
 - `VDU 22,n` Mode n
 - `VDU 25,mode,x;y;` PLOT mode,x,y
+- `VDU 29,x;y;` Set graphics origin to x,y
 - `VDU 30` Home cursor
 - `VDU 31,x,y` TAB(x,y)
 
