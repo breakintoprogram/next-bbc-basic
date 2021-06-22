@@ -3,7 +3,7 @@
 ;		Patch file for Spectrum Next
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	08/06/2021
+; Last Updated:	15/06/2021
 ;
 ; Modinfo:
 ; 09/05/2021E:	Fixed plot mode and bug in COMDS table
@@ -19,6 +19,7 @@
 ; 29/05/2021:	Bug fixes; Implemented *BYE
 ; 04/06/2021:	Added SOUND
 ; 08/06/2021:	Tweaked OSLINE EQU to reflect new module name
+; 15/06/2021:	Plot, Draw, Move and Line now call Transform_Coords
 
 			MODULE PATCH
 
@@ -304,9 +305,21 @@ STAR_MEMDUMP		CALL	ASC_TO_NUMBER	; Get start address
 ; OSCLI TEST
 ; Stick code to test here
 ;
-STAR_TEST:		LD	DE, 960
+STAR_TEST:		CALL	ASC_TO_NUMBER
+			PUSH	DE
+			CALL	SKIPSP 
+			CALL	ASC_TO_NUMBER
+			PUSH	DE 
+			CALL	SKIPSP	
+			CALL	ASC_TO_NUMBER
+			POP	BC
+			POP	HL
+			CALL	NEXT_GRAPHICS.Primitive_Line_Horz
+			RET
+;
+			LD	DE, 960
 			LD	HL, 512
-			CALL	NEXT_GRAPHICS.Transform_Coordinates
+			CALL	NEXT_GRAPHICS.Transform_Coords
 			RET 
 ;
 			CALL	ASC_TO_NUMBER	
@@ -495,6 +508,7 @@ STAR_SAVE:		CALL	SKIPSP		; First parameter is a string
 			PUSH	HL	
 			CALL	COMMA 
 			CALL	EXPR_P2		; DE: X, HL: Y
+			CALL	NEXT_GRAPHICS.Transform_Coords
 			POP	BC		; Plot type in C
 			LD	A, C 		; Plot type in A
 			PUSH	HL		; Y
@@ -508,6 +522,7 @@ STAR_SAVE:		CALL	SKIPSP		; First parameter is a string
 ; MOVE x, y
 ;
 @MOVE:			CALL	EXPR_P2		; DE: X, HL: Y
+			CALL	NEXT_GRAPHICS.Transform_Coords
 			CALL	MOVE_1
 			JP	XEQ
 ;
@@ -522,12 +537,14 @@ STAR_SAVE:		CALL	SKIPSP		; First parameter is a string
 ; DRAW x, y
 ;
 @DRAW:			CALL	EXPR_P2		; DE: X, HL: Y
+			CALL	NEXT_GRAPHICS.Transform_Coords
 			CALL	NXT 		; Are there any more paramters?
 			CP	","		
 			JR	NZ, 1F		; No, so just do 'DRAW x, y'
 			CALL	COMMA		; Okay, we're now doing 'DRAW x1,y1,x2,y2
 			CALL	MOVE_1		; MOVE x1,y1 (DE, HL)
 			CALL	EXPR_P2		; DE: X2, HL: Y2
+			CALL	NEXT_GRAPHICS.Transform_Coords
 1:			PUSH	HL 		; Stack X2
 			PUSH	DE		; Stack Y2
 			CALL	NEXT_GRAPHICS.Plot_Line
@@ -536,6 +553,7 @@ STAR_SAVE:		CALL	SKIPSP		; First parameter is a string
 ; POINT(x,y)
 ;
 @POINT:			CALL	EXPR_P2		; DE: X, HL: Y
+			CALL	NEXT_GRAPHICS.Transform_Coords
 			CALL	NEXT_GRAPHICS.Point
 			LD	L, A
 1:			CALL	BRAKET
