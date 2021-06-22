@@ -1,7 +1,6 @@
 # TODO
 ### Next Jobs
 ### Known Bugs / Missing Features
-- Cannot COPY characters in Mode 1, 2 or 3
 - Cannot set RTC by assigning to TIME$
 - Timestamp not set in saved files
 - No attempt to check whether a loaded file will fit in memory
@@ -9,8 +8,12 @@
 - Aspect ratio of circle is stretched vertically in MODE 3
 - GCOL modes not working for Plot in Mode 3
 - GCOL modes not working for filled triangles
-- Set all graphics to use common viewport (1280x1024) with origin at bottom left, like BBC Micro
 ### Fixed Bugs / New Features
+#### Version 0.13
+- Set all graphics to use common viewport (1280x1024) with origin at bottom left, like BBC Micro
+- Added support for VDU 29 (setting the graphics origin)
+- CLG now works correctly
+- COPY characters now works in Modes 1, 2 and 3
 #### Version 0.12
 - Mode 3 - horizontal line not quite working (see circles.bbc, gaps in circle at end of draw)
 #### Version 0.11
