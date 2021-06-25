@@ -5,7 +5,7 @@ These releases are compiled on an ad-hoc basis and have been tested on the MiSTe
 
 #### Using with ZEsarUX
 
-Please make sure you use the latest version of ZEsarUX (9.3 Beta 1 at time of writing). Earlier versions are missing a couple of features that have been introduced into later cores, ULA scrolling and relative Layer 2 page offset; There is a workaround for that, and files with names ending in "_em.nex" have been assembled with that.
+Please make sure you use the latest version of ZEsarUX (9.3 Beta 1 at time of writing). Earlier versions are missing a couple of features that have been introduced into later cores, ULA scrolling and relative Layer 2 page offset.
 
 I would also recommend you copy the nex file to the img file and launch from the Next browser. ZEsarUX does not initialise the Next correctly if the nex file is dragged into the emulator or loaded using Smart Load. This is by design, but will prevent the disk commands from working. I would recommend this method anyway.
 
