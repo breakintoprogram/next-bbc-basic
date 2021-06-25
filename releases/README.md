@@ -1,22 +1,19 @@
 
 # releases
 
-These releases are compiled on an ad-hoc basis and have been tested on the MiSTer Next core, ZEsarUX emulator (9.2) and CSpect (2.14.03)
+These releases are compiled on an ad-hoc basis and have been tested on the MiSTer Next core, ZEsarUX emulator (9.3 Beta 1) and CSpect (2.14.03)
 
 #### Using with ZEsarUX
 
-Please note that version 9.2 of ZEsarUX is missing a couple of features that have been introduced into later cores that prevent my software from working correctly. The first is ULA scrolling; There is a workaround for that, and files with names ending in "_em.nex" have been assembled with that.
+Please make sure you use the latest version of ZEsarUX (9.3 Beta 1 at time of writing). Earlier versions are missing a couple of features that have been introduced into later cores, ULA scrolling and relative Layer 2 page offset; There is a workaround for that, and files with names ending in "_em.nex" have been assembled with that.
 
-The other affects the Layer 2 access port 0x123B; there is a new mode (built into Core 3.0.7) that adds a relative offset to Layer 2 screen paging. There is no workaround for that, so from version 0.08 I've only assembled a regular nex file that will work on CSpect and Next compatible hardware. 
-
-Note that the author of ZEsarUX has tested fixes for those omissions, and they should be included in the next release of ZEsarUX.
-
-Finally, you will need to copy the nex file to the img file and launch from the Next browser. ZEsarUX does not initialise the Next if the nex file is dragged into the emulator or loaded using Smart Load. This is by design, but will prevent the disk commands from working. I would recommend this method anyway.
+I would also recommend you copy the nex file to the img file and launch from the Next browser. ZEsarUX does not initialise the Next correctly if the nex file is dragged into the emulator or loaded using Smart Load. This is by design, but will prevent the disk commands from working. I would recommend this method anyway.
 
 ##### 20210622: Version 0.13
 - COPY characters now works in Modes 1, 2 and 3
 - Set all graphics to use common viewport (1280x1024) with origin at bottom left, like BBC Micro
-- Added support for VDU 19 (setting the graphics origin)
+- All BASIC graphics tests updated in tests folder
+- Added support for VDU 29 (setting the graphics origin)
 - CLG now works
 ##### 20210614: Version 0.12
 - Fixed bugs in Clear_Screen:
