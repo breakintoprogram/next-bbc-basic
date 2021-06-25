@@ -32,7 +32,7 @@ I'm attempting to make this as close to Version 4 of the BBC Basic Standard, res
 
 The code is written to be assembled by the SJASMPLUS assembler. Details of the toolchain I use [can be found here on my website](http://www.breakintoprogram.co.uk/computers/zx-spectrum-next/assembly-language/z80-development-toolchain).
 
-> Please note that from version 0.08 this project is no longer compatible with ZEsarUX (9.2). You will either need to run on CSpect, a Next, or equivalent hardware running a Next core.
+> Please note that from version 0.08 this project is no longer compatible with ZEsarUX 9.2. Please upgrade to ZEsarUX 9.3 Beta 1 or higher.
 
 Every endeavour will be made to ensure the code is stable and will assemble, yet as this is a work-in-progress done in my spare time there will be instances where this is not the case. Please do not raise an issue in GIT, I'm more than likely aware of this!
 
