@@ -3,10 +3,10 @@
 ;		Patch file for Spectrum Next
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	15/06/2021
+; Last Updated:	05/07/2021
 ;
 ; Modinfo:
-; 09/05/2021E:	Fixed plot mode and bug in COMDS table
+; 09/05/2021:	Fixed plot mode and bug in COMDS table
 ; 10/05/2021:	Added RTC TIME$ and *TIME, moved some code into misc.z80, and changes due to VDU support
 ; 15/05/2021:	References to ASC_TO_HEX changed to ASC_TO_NUMBER in STAR commands; Updates for MODE command
 ; 17/05/2021:	Fixed bug in OSLINE; now returns 0; Added cursor to OSLINE; Added *EDIT; Tweaks for COLOUR, GCOL
@@ -20,6 +20,7 @@
 ; 04/06/2021:	Added SOUND
 ; 08/06/2021:	Tweaked OSLINE EQU to reflect new module name
 ; 15/06/2021:	Plot, Draw, Move and Line now call Transform_Coords
+; 05/07/2021:	Added OPT, OSOPEN, OSSHUT, OSBGET, OSBPUT, OSSTAT, GETPTR and PUTPTR
 
 			MODULE PATCH
 
@@ -225,6 +226,7 @@ COMDS:  		DC	'BYE':		DEFW STAR_BYE		; Soft reset
 			DC	'LOAD':		DEFW STAR_LOAD		; Load memory block
 			DC	'MEMDUMP': 	DEFW STAR_MEMDUMP	; Memory hex dump
 			DC	'MKDIR':	DEFW STAR_MKDIR		; Make directory
+			DC	'OPT':		DEFW STAR_OPT		;
 			DC	'RMDIR':	DEFW STAR_RMDIR		; Remove directory
 			DC	'SAVE':		DEFW STAR_SAVE		; Save memory block
 			DC	'TEST': 	DEFW STAR_TEST		; Test code call for debugging new functions
@@ -396,6 +398,17 @@ STAR_SAVE:		CALL	SKIPSP		; First parameter is a string
 			CALL	NEXT_DOS.Save
 			POP	HL
 			RET
+
+; OSCLI OPT n
+;
+STAR_OPT:		CALL	ASC_TO_NUMBER
+			LD	A, E 
+			AND 	3
+SETOPT:			LD	(OPTVAL), A 
+			RET
+;
+@RESET:			XOR 	A 
+			JR	SETOPT		
 
 ; ----------------------------------------------------------------------------
 
@@ -603,6 +616,113 @@ STAR_SAVE:		CALL	SKIPSP		; First parameter is a string
 
 ; ----------------------------------------------------------------------------
 
+; OSOPEN
+; HL: Pointer to path
+;  F: C Z
+;     x x OPENIN
+; 	  OPENOUT
+;     x	  OPENUP
+; Returns:
+;  A: Filehandle, 0 if cannot open
+;
+@OSOPEN:		LD	B, 0x01		; Mode: Read+Open
+			JR	Z, 1F
+			LD	B, 0x0A		; Mode: Write+Open/Create
+			JR	C, 1F
+			LD	B, 0x0E		; Mode: Write+Open/Create, Delete if Existing
+1:			CALL	CRTONULL
+			PUSH	HL
+			POP	IX
+			LD	A, (FDRIVE)
+			JP	NEXT_DOS.FOPEN
+
+;OSSHUT - Close disk file(s).
+; E = file channel
+;  If E=0 all files are closed (except SPOOL)
+; Destroys: A,B,C,D,E,H,L,F
+;
+@OSSHUT:		LD	A, E 		; Will need to store file handles for close all
+			OR	A
+			RET	Z		
+			JP	NEXT_DOS.FCLOSE
+
+; OSBGET - Read a byte from a random disk file.
+;  E = file channel
+; Returns
+;  A = byte read
+;  Carry set if LAST BYTE of file: TODO
+; Destroys: A,B,C,F
+;
+@OSBGET:		PUSH	HL
+			CALL	NEXT_DOS.FREADB
+			POP	HL
+			OR	A		; Clear carry flag
+			RET
+
+; OSBPUT - Write a byte to a random disk file.
+;  E = file channel
+;  A = byte to write
+; Destroys: A,B,C,F
+;
+@OSBPUT:		PUSH	DE
+			PUSH	HL 
+			CALL	NEXT_DOS.FWRITEB
+			POP	HL
+			POP	DE
+			RET 
+
+; OSSTAT - Read file status
+;  E = file channel
+; Returns
+;  F: Z flag set - EOF
+;  A: If Z then A = 0
+; Destroys: A,D,E,H,L,F
+;
+@OSSTAT:		JP	NEXT_DOS.EOF
+
+; GETPTR - Return file pointer.
+;    E = file channel
+; Returns:
+; DEHL = pointer (0-&7FFFFF)
+; Destroys: A,B,C,D,E,H,L,F
+;
+@GETPTR:		LD	A, E
+			CALL	NEXT_DOS.GETPOS 
+			EX	DE, HL		; BCDE -> BCHL
+			LD	D, B 
+			LD	E, C 		; BCHL -> DEHL
+			RET
+
+; PUTPTR - Update file pointer.
+;    A = file channel
+; DEHL = new pointer (0-&7FFFFF)
+; Destroys: A,B,C,D,E,H,L,F
+;
+@PUTPTR:		LD	B, D		; DEHL -> BCHL
+			LD	C, E
+			EX	DE, HL		; BCHL -> BCDE
+			PUSH	IX
+			LD	IXL, 0x00	; Set
+			CALL	NEXT_DOS.SEEK 
+			POP	IX 
+			RET 
+
+; GETEXT - Find file size.
+;    E = file channel
+; Returns:
+; DEHL = file size (0-&800000)
+; Destroys: A,B,C,D,E,H,L,F
+;
+@GETEXT:		LD	A, E
+			CALL	NEXT_DOS.FSTAT
+			LD	L, (IX+7)
+			LD	H, (IX+8)
+			LD	E, (IX+9)
+			LD	D, (IX+10)
+			RET
+
+; ----------------------------------------------------------------------------
+
 ; SOUND channel,volume,pitch,duration
 ; volume: 0 (off) to -15 (full volume)
 ; pitch: 0 - 255
@@ -628,16 +748,6 @@ STAR_SAVE:		CALL	SKIPSP		; First parameter is a string
 ; Stuff not implemented yet
 ; There's also more stuff in sorry.z80
 ;
-@OSBPUT:
-@OSBGET:
-@OSSTAT:
-@OSSHUT:
-@OSOPEN:
-@OSCALL:
-@GETPTR:
-@PUTPTR:
-@GETEXT:
-@RESET:
-			RET
+@OSCALL:		RET
 
 			ENDMODULE
