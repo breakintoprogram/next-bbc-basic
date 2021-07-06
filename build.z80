@@ -27,7 +27,7 @@
 			
 			DEVICE ZXSPECTRUMNEXT		; sjasmplus directive for SAVESNA at end
 
-			DEFINE BUILD_VERSION "0.13"	; Build version
+			DEFINE BUILD_VERSION "0.14"	; Build version
 ;	
 ; Assembly flags
 ;
