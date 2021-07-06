@@ -6,9 +6,17 @@
 - No attempt to check whether a loaded file will fit in memory
 - The DIR outputs file size in bytes; be good to have human readable units (bytes/KB/MB)
 - Aspect ratio of circle is stretched vertically in MODE 3
-- GCOL modes not working for Plot in Mode 3
 - GCOL modes not working for filled triangles
+- File issues
+	- BASIC does not close all open files on error
 ### Fixed Bugs / New Features
+#### Version 0.14
+- RAM contention is now switched off
+- GCOL modes not working for Plot in Mode 3
+- File commands
+	- OPENOUT and OPENUP now working to spec
+	- INPUT# now more robust when more than one file is open
+	- PTR# and EXT# now work
 #### Version 0.13
 - Set all graphics to use common viewport (1280x1024) with origin at bottom left, like BBC Micro
 - Added support for VDU 29 (setting the graphics origin)
