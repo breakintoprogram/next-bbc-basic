@@ -3,7 +3,7 @@
 ;		Spectrum Next DOS routines
 ; Author:	Dean Belfield
 ; Created:	06/05/2021
-; Last Updated:	25/05/2021
+; Last Updated:	05/07/2021
 ;
 ; Notes:
 ;
@@ -39,6 +39,7 @@
 ; 23/05/2021:	Added CD and LS
 ; 24/05/2021:	Added Load and Save
 ; 25/05/2021:	Added Delete, MKDIR, RMDIR, DRIVE, Writes done at 28Mhz, error codes
+; 05/07/2021:	Added FOPEN, FCLOSE, FREADB, GETPOS, SEEK
 
 			MODULE	NEXT_DOS
 
@@ -53,6 +54,8 @@ f_close                 EQU     0x9B
 f_read			EQU	0x9D
 f_write			EQU	0x9E
 f_seek			EQU	0x9F
+f_getpos		EQU	0xA0
+f_fstat			EQU	0xA1
 f_getdir		EQU	0xA8
 f_setdir		EQU	0xA9
 f_opendir		EQU	0xA3
@@ -116,6 +119,120 @@ DRIVE:			CP	"$"
 			JP	C, Error
 			RET
 
+; FOPEN
+; IX: Pointer to path
+;  A: Drive
+;  B: Mode
+; Returns:
+;  A: Filehandle, 0 if cannot open
+;
+FOPEN:			NEXTREG	0x07, 3
+			CALLESX	f_open
+			JR	NC, 1F
+			XOR	A
+1:			PUSH	AF 
+			LD	A, (CPU_SPEED)
+			NEXTREG	0x07, A 
+			POP	AF 
+			RET 
+
+; FCLOSE
+;  E: Filehandle
+;
+FCLOSE:			NEXTREG	0x07, 3 
+			LD	A, E
+			CALLESX	f_close
+			LD	A, (CPU_SPEED)
+			NEXTREG	0x07, A 
+			RET 
+
+; FREADB
+;  E: Filehandle
+; Returns
+;  A: Byte to read
+;
+FREADB:			NEXTREG	0x07, 3 
+			LD	IX, FDATA		; 1 byte buffer for data
+1:			LD	BC, 1
+			PUSH	DE
+			LD	A, E
+			CALLESX	f_read
+			POP	DE
+			JR	C, 1B			; Loop until we've read a byte
+			LD	A, (CPU_SPEED)
+			NEXTREG	0x07, A 
+			LD	A, (IX)
+			RET
+
+; FWRITEB
+;  E: Filehandle
+;  A: Byte to write
+;
+FWRITEB:		NEXTREG	0x07, 3 
+			LD	IX, FDATA
+			LD	(IX), A
+			LD	BC, 1
+			LD	A, E 
+			CALLESX	f_write
+			LD	A, (CPU_SPEED)
+			NEXTREG	0x07, A 
+			RET 
+
+; EOF
+;  E: Filehandle
+; Returns
+;  F: Z if EOF, otherwise NZ
+;
+EOF:			CALL	FREADB			; Try to read a byte
+			LD	A, B 			; If # bytes read is zero
+			OR	C 
+			RET	Z			; Then it is probably end of file
+			PUSH	AF			; Stack the flags
+			NEXTREG	0x07, 3
+			LD	A, E			; File handle
+			LD	BC, 0			; Seek backwards 1 space
+			LD	DE, 1
+			LD	IXL, 2
+			CALLESX	f_seek
+			LD	A, (CPU_SPEED)
+			NEXTREG	0x07, A 
+			POP	AF			; Restore the flags
+			RET
+
+; GETPOS
+;    A: Filehandle
+; Returns
+; BCDE: Current position
+;    F: C if there is an error
+;
+GETPOS:			CALLESX	f_getpos
+			RET 
+
+; SEEK
+;    A: Filehandle
+; BCDE: Current position
+;  IXL: Seek mode
+;    F: C if there is an error
+; 
+SEEK:			CALLESX	f_seek
+			RET
+
+; FSTAT
+;    A: Filehandle
+; Returns
+; IX+0: '*'
+; IX+1; 0x81
+; IX+2: File attributes (MS-DOS format)
+; IX+3: Timestamp (2 bytes MS-DOS format)
+; IX+5: Datestamp (2 bytes MS-DOS format)
+; IX+7: Filesize in bytes (4 bytes)
+;
+FSTAT:			LD	IX, FDATA
+			CALLESX	f_fstat
+			RET	
+
+; ----------------------------------------------------------------------------
+			
 ; Load a file
 ;  A: Drive
 ; IX: Pointer to path
@@ -181,7 +298,7 @@ CD:			CALLESX	f_chdir
 ; Read a directory
 ;  A: Drive
 ;
-LS:			LD	IX, FBUFFER
+LS:			LD	IX, DOS_BUFFER
 			CALLESX	f_getcwd 
 			JP	C, Error
 
@@ -190,7 +307,7 @@ LS:			LD	IX, FBUFFER
 			JP	C, Error		; Check for error
 			LD	(FH), A 		; Store the handle	
 ;
-1:			LD	IX, FBUFFER		
+1:			LD	IX, DOS_BUFFER		
 			LD	A, (FH)			; Read the next directory entry
 			CALLESX	f_readdir
 			JP	C, Error_Close		; Check for error
