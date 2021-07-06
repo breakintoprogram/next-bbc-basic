@@ -9,6 +9,13 @@ Please make sure you use the latest version of ZEsarUX (9.3 Beta 1 at time of wr
 
 I would also recommend you copy the nex file to the img file and launch from the Next browser. ZEsarUX does not initialise the Next correctly if the nex file is dragged into the emulator or loaded using Smart Load. This is by design, but will prevent the disk commands from working. I would recommend this method anyway.
 
+##### 20210706: Version 0.14
+- RAM contention is now switched off for 3.5Mhz CPU speed
+- GCOL modes for PLOT now work in Mode 3
+- Data file I/O now implemented:
+	- OPENIN, OPENOUT, OPENUP, CLOSE#
+	- INPUT#, PRINT#
+	- EOF#, PTR#, EXT#
 ##### 20210622: Version 0.13
 - COPY characters now works in Modes 1, 2 and 3
 - Set all graphics to use common viewport (1280x1024) with origin at bottom left, like BBC Micro
