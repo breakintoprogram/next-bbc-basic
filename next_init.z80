@@ -3,7 +3,7 @@
 ;		Spectrum Next Initialisation
 ; Author:	Dean Belfield
 ; Created:	04/05/2021
-; Last Updated:	14/06/2021
+; Last Updated:	24/06/2021
 ;
 ; Modinfo:
 ; 13/05/2021:	Added BUILD_VERSION
@@ -17,6 +17,7 @@
 ; 08/06/2021:	Test for ESC now done on interrupt
 ; 11/06/2021:	Now uses NREG definitions in equs.z80
 ; 14/06/2021:	Setup default (Spectrum) palette for L2 modes
+; 24/06/2021:	Disabled RAM contention (Peripheral 3)
 
 			MODULE	NEXT_INIT
 
@@ -26,7 +27,7 @@ System:			DI
 			NEXTREG	NREG.CONFIG_MAPPING, 0x03		
 			NEXTREG NREG.PERIPHERAL_1, %01110001	; Peripheral 1 settings
 			NEXTREG NREG.PERIPHERAL_2, %10101000	; Peripheral 2 settings
-			NEXTREG NREG.PERIPHERAL_3, %10011110	; Peripheral 3 settings
+			NEXTREG NREG.PERIPHERAL_3, %11011110	; Peripheral 3 settings
 ;			NEXTREG	NREG.PERIPHERAL_4, %00011000	; Peripheral 4 settings
 			NEXTREG	NREG.MACHINE_TYPE, %10110011	; Machine type - Native Next/128K+3
 
