@@ -27,7 +27,7 @@
 			
 			DEVICE ZXSPECTRUMNEXT		; sjasmplus directive for SAVESNA at end
 
-			DEFINE BUILD_VERSION "0.14"	; Build version
+			DEFINE BUILD_VERSION "0.15"	; Build version
 ;	
 ; Assembly flags
 ;
@@ -45,6 +45,8 @@ CONF_KEYRPT_2:		EQU	5			; Subsequent key repeats (50ths of a second)
 ;
 IM2_Table:              EQU	0xFE00			; 256 byte page (+ 1 byte) for IM2
 IM2_JP:                 EQU	0xFDFD			; 3 bytes for JP routine under IM2 table
+ROM_Charset		EQU	0x3D00			; Address of charset in ROM
+RAM_Top:		EQU	0xFD00			; Top of usable RAM; must be on a page boundary
 Stack_Top:		EQU	0x0000			; Stack at top
 Code_Start		EQU	0x5B00			; Code straight after screen RAM
 
@@ -83,7 +85,7 @@ Code_Start		EQU	0x5B00			; Code straight after screen RAM
 
 			ALIGN 	256			; USER needs to be alignd to a page boundary
 
-@USER:			incbin "tests/cube.bbc"		; BASIC program to load into memory
+@USER:			incbin "tests/mandlebrot.bbc"	; BASIC program to load into memory
 
 	 		SAVENEX OPEN "Z80/BBC Basic/build.nex", Code_Start, Stack_Top
 			SAVENEX CORE 3, 0, 0
