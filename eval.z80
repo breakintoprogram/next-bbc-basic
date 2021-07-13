@@ -4,7 +4,7 @@
 ; Author:	(C) Copyright  R.T.Russell  1984
 ; Modified By:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	21/05/2021
+; Last Updated:	11/07/2021
 ;
 ; Modinfo:
 ; 07/05/1984:	Version 2.3
@@ -14,6 +14,7 @@
 ; 02/05/2021:	Modified by Dean Belfield to assemble with SJASMPLUS
 ; 05/05/2021:	GET modified to take second optional parameter for Next registers
 ; 21/05/2021:	Handful of Z80N optimisations
+; 11/07/2021:	GETS modified for new function GET$(x, y)
 
 ;
 ;BINARY FLOATING POINT REPRESENTATION:
@@ -1030,10 +1031,14 @@ CHRS:			CALL    ITEMI
 			LD      A,L
 			JR      GET1
 ;
-;GETS - Return key pressed as string.
+;GETS - Return key pressed as string or character at position (X, Y)
 ;Result is string.
 ;
-GETS:			CALL    OSRDCH
+GETS:			CALL	NXT		;New code for GET$(x,y)
+			CP	"("		;Check for bracket
+			JP	Z, GET_CHAR	;Handle GET$(x,y)
+;
+			CALL    OSRDCH		;Original entry point for GETS
 GET1:			SCF
 			JR      INKEY1
 ;
