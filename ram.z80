@@ -6,7 +6,7 @@
 ; Author:	(C) Copyright  R.T.Russell 31-12-1983
 ; Modified By:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	29/06/2021
+; Last Updated:	12/07/2021
 ;
 ; Modinfo:
 ; 02/05/2021:	Modified by Dean Belfield to assemble with SJASMPLUS
@@ -23,6 +23,7 @@
 ; 04/06/2021:	Added AY buffers
 ; 15/06/2021:	Added PLOTORG_X and PLOTORG_Y
 ; 29/06/2021:	Added OPTVAL, FDATA
+; 12/07/2021:	Added UDG_MASK
 
 			MODULE RAM
 
@@ -148,7 +149,8 @@ Start:			EQU 	$
 @CHAR_ROWS:		DEFS	1
 @PIXEL_WIDTH:		DEFS	2		; Screen dimensions (pixels)
 @PIXEL_HEIGHT:		DEFS	2
-@OPTVAL			DEFS	1	
+@OPTVAL:		DEFS	1	
+@UDG_MASK:		DEFS	1		; Exploded UDG mode mask
 ;
 @LX1			DEFS	2		; TEMP: TODO REMOVE
 @LY1			DEFS	2
