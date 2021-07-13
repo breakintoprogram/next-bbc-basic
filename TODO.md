@@ -7,9 +7,19 @@
 - The DIR outputs file size in bytes; be good to have human readable units (bytes/KB/MB)
 - Aspect ratio of circle is stretched vertically in MODE 3
 - GCOL modes not working for filled triangles
+- Improve the keyscan routine when selecting shifted characters
+- Get_Char does not recognise UDG characters
+- Get_Char in L2 - perhaps consider using background colour rather than foreground to pick out text
+- *FX 20 should take a copy of the ROM charset into RAM
 - File issues
 	- BASIC does not close all open files on error
 ### Fixed Bugs / New Features
+#### Version 0.15
+- Bug in PUTCSR; TAB(X,Y) ignores Y coordinate
+- Modifications to GET and PUT
+	- Add GET(x, y) and GET$(x, y) to read character from screen position (x, y)
+	- Change GET(n, 1) to GET(n OR &10000)
+	- Change PUT(n, 1) to PUT(n OR &10000)
 #### Version 0.14
 - RAM contention is now switched off
 - GCOL modes not working for Plot in Mode 3

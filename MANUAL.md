@@ -18,21 +18,39 @@ See [assembler_Z80N.bbc](tests/source%20text/assembler_Z80N.txt) in the folder [
 
 The following statements differ from the BBC Basic standard:
 
-### PUT port,value[,type]
+### PUT port,value
 
-An additional optional parameter, type, has been added.
-
-- 1: write out value to a NEXTREG register
-- 0: write value to a Z80 port. 
+Write to a port; add &10000 to port to write to a NEXTREG register
 
 Examples:
 
 - `PUT 254,5` Output 5 to Z80 port 254
-- `PUT 7,3,1` Output 3 to Next Register 7
+- `PUT &10007,3` Output 3 to Next register 7
 
-### GET(port[,type])
+### GET(port)
 
-Like PUT, this takes an optional type parameter to read from NEXTREG registers
+Read from a port; add &10000 to port to read from a NEXTREG register
+
+Examples:
+
+- `A = GET(254)` Read from Z80 port 254
+- `A = GET(&10007)` Read from Next register 7
+
+### GET(x,y)
+
+Read a character code from the screen position X, Y. If the character cannot be read, return -1
+
+Example:
+
+- `A = GET(0,0)` Read character code from screen position(0,0)
+
+### GET$(x,y)
+
+As GET(x,y), but return a string rather than a character code
+
+Example:
+
+- `A$ = GET$(0,0)` Read character code from screen position(0,0)
 
 ### PLOT type,x,y
 
@@ -110,6 +128,7 @@ The VDU command is a work-in-progress with a handful of mappings implemented:
 - `VDU 18,mode,col` GCOL mode,col
 - `VDU 19,l,r,g,b` COLOUR l,r,g,b
 - `VDU 22,n` Mode n
+- `VDU 23,c,b1,b2,b3,b4,b5,b6,b7,b8` Define UDG c
 - `VDU 25,mode,x;y;` PLOT mode,x,y
 - `VDU 29,x;y;` Set graphics origin to x,y
 - `VDU 30` Home cursor
@@ -223,7 +242,8 @@ List contents of memory, hexdump and ASCII.
 
 ### FX n
 
-- `*FX 19` Wait for the horizontal sync
+- `*FX 19`: Wait for the horizontal sync
+- `*FX 20 n`: Reserve space for UDGs in RAM
 
 ## Other considerations
 
