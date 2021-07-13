@@ -3,7 +3,7 @@
 ;		Patch file for Spectrum Next
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	05/07/2021
+; Last Updated:	10/07/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Fixed plot mode and bug in COMDS table
@@ -21,6 +21,7 @@
 ; 08/06/2021:	Tweaked OSLINE EQU to reflect new module name
 ; 15/06/2021:	Plot, Draw, Move and Line now call Transform_Coords
 ; 05/07/2021:	Added OPT, OSOPEN, OSSHUT, OSBGET, OSBPUT, OSSTAT, GETPTR and PUTPTR
+; 10/07/2021:	Fixed bug in PUTCSR and optimised PUTSCR and GETCSR; Modified GET_PORT and PUT
 
 			MODULE PATCH
 
@@ -61,24 +62,16 @@
 
 ; PUTCSR: move to cursor to x=DE, y=HL
 ;
-@PUTCSR:		PUSH	AF 
-			LD	A, E
-			LD	(CHARPOS_X), A 
-			LD	A, D 
-			LD	(CHARPOS_Y), A 
-			POP	AF
+@PUTCSR:		LD	D, L			; E: X, D: Y
+			LD	(CHARPOS_X), DE
 			RET
 
 ; GETCSR: return cursor position in x=DE, y=HL
 ;
-@GETCSR:		PUSH	AF
-			LD	D, 0
-			LD	H, D
-			LD	A,(CHARPOS_X)
-			LD	E, A
-			LD 	A,(CHARPOS_Y)
-			LD	L, A
-			POP	AF
+@GETCSR:		LD	DE, (CHARPOS_X)		; E: X, D: Y
+			LD	L, D 					
+			LD	H, 0			; HL: Y
+			LD	D, H 			; DE: X
 			RET
 
 ; Read character from keyboard (blocking)
@@ -148,9 +141,10 @@ ESCTEST:		LD	A, (KEYCODE)
 ;  Destroys: A,D,E,H,L,F
 ;
 @OSINIT: 		XOR	A
-			LD	(@FLAGS), A		; Clear flags
-         		LD 	DE, IM2_Table - 256	; DE = HIMEM (currently under IM2 table)
+         		CALL	NEXT_INIT.Reserve_UDG	; Reserve RAM for UDG; returns DE = RAMTOP
          		LD 	HL, @USER
+			XOR	A
+			LD	(@FLAGS), A		; Clear flags and set F = Z
          		RET	
 
 ;OSCLI - Process an "operating system" command
@@ -285,14 +279,29 @@ STAR_DRIVE:		CALL	SKIPSP
 			JP	NEXT_DOS.DRIVE
 
 ; OSCLI FX n
-; 19: HSYNC
 ;
 STAR_FX:		CALL	ASC_TO_NUMBER
+			CALL	SKIPSP
 			LD	A, E
 			CP	19
 			JR	Z, STAR_FX_19 
+			CP	20
+			JR	Z, STAR_FX_20
 			JP 	HUH
-STAR_FX_19:		HALT
+
+; OSCLI FX 19: Wait 1/50th of a second
+;
+STAR_FX_19:		HALT			
+			RET
+
+; OSCLI FX 20,n: Explode/implode user defined character font RAM
+;
+STAR_FX_20:		CALL	ASC_TO_NUMBER
+			LD	A, E 
+			CP	7
+			JP	NC, HUH
+			CALL	NEXT_INIT.Reserve_UDG
+			LD	(HIMEM), DE
 			RET
 
 ; OSCLI MEMDUMP addr, count
@@ -412,61 +421,88 @@ SETOPT:			LD	(OPTVAL), A
 
 ; ----------------------------------------------------------------------------
 
-; PUT port,data[,type]
+; PUT port,data
 ; Moved from exec.z80
+; To write Nextreg port, OR port with &10000
 ;
-@PUT:			CALL    EXPRI           ; PORT ADDRESS
+@PUT:			CALL    EXPRI           ; Port address
+			LD	A, L		; L is the high word of the port address; check for 1
 			EXX
+			PUSH	AF 
 			PUSH    HL
 			CALL    COMMA
-			CALL    EXPRI           ; DATA
+			CALL    EXPRI           ; Data
 			EXX
-			PUSH	HL
-			CALL    NXT		; If no third parameter passed
-			CP	","		; Can we find a comma
-			LD	A, 0		; Default value
-			JR 	NZ, 1F		; No, so skip third parameter
-			CALL	COMMA		; Yes, so skip the comma
-			CALL	EXPRI		; TYPE
-			EXX
-			LD	A, L		;  A = TYPE
-1:			POP	HL		;  L = DATA
-			POP	BC		; BC = PORT/REGISTER
-			OR	A 
-			JR	Z, 2F	
-			DEC	A 
-			JR	Z, 3F
-			JP	XEQ		; TODO: Error here
-2:			OUT     (C), L          ; OUTPUT TO PORT BC
+			POP     BC
+			POP	AF 
+			CP	0
+			JR	Z, 1F 		; It's a Z80 port
+			Z80PORT	0x243B, C 	; Select Nextreg port
+			INC	B 
+1:			OUT     (C),L           ; Output to Z80 port
 			JP      XEQ
-3:			Z80PORT	0x243B, C	; Nextreg port
-			INC	B
-			OUT	(C), L
-			JP	XEQ
 
-; GET(port[,type])
+; GET(port) - Read Z80/Nextreg port
+; GET(x, y) - Read character from screen position (x, y)
 ; Called from GET in eval.z80
+; To read Nextreg port, OR port with &10000
 ;
 @GET_PORT:		INC	IY		; Skip '('
 			CALL    EXPRI           ; PORT ADDRESS
+			LD	A, L 		; L is the high word of the port address; check for 1
 			EXX
-			PUSH	HL
+			PUSH	AF 
+			PUSH	HL 
 			CALL	NXT
 			CP	","
-			LD	A, 0		; Default type
 			JR	NZ, 1F
-			CALL	COMMA		; Skip comma
-			CALL	EXPRI		; Type
-			EXX
-			LD	A, L		;  A = TYPE
-1:			POP	BC		; BC = PORT/REGISTER
-			OR	A 
-			JR	Z, 2F 		; If zero, skip to plain Z80 fetch
-			Z80PORT	0x243B, C	; Nextreg port
+;
+; Get second parameter
+;
+			CALL	COMMA		
+			CALL	EXPRI
+			EXX 
+			POP	DE 		; DE: X coordinate 
+			POP	AF 		; AF: Not used
+			LD	H, L		; H: Y coordinate
+			LD	L, E		; L: X coordinate
+			CALL	NEXT_IO.Get_Charpos_1
+			CALL	NEXT_GRAPHICS.Get_Char
+			LD	L, A		; Character code, or 0xFF if no match
+			JR	C, 3F		; We have a character
+			CALL	BRAKET		; Check for second bracket
+			JP	EVAL.TRUE	; Return -1
+;
+; Read port
+;
+1:			POP	BC 		; Port # in BC
+			POP	AF	
+			CP	0
+			JR	Z, 2F		; It's a Z80 port
+			Z80PORT	0x243B, C 	; Select Nextreg port
 			INC	B
-2:			IN	L,(C)		; Read value
-			CALL    BRAKET
-			JP      EVAL.COUNT0
+2:			IN	L, (C)		; Read the value
+3:			CALL	BRAKET
+			JP	EVAL.COUNT0
+
+; GET$(x, y) - Read character from screen position (x, y)
+;
+@GET_CHAR:		INC	IY
+			CALL    EXPRI           ;Get X coordinate
+			EXX
+			PUSH	HL 		
+			CALL	COMMA		
+			CALL	EXPRI		;Get Y coordinate
+			EXX 
+			POP	DE 		;DE: X coordinate 
+			LD	H, L		;H: Y coordinate
+			LD	L, E		;L: X coordinate
+			CALL	NEXT_IO.Get_Charpos_1
+			CALL	NEXT_GRAPHICS.Get_Char
+			EX	AF, AF
+			CALL	BRAKET
+			EX	AF, AF
+			JP	EVAL.INKEY1 
 
 ; ----------------------------------------------------------------------------
 
