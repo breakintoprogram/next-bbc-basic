@@ -3,7 +3,7 @@
 ;		Spectrum Next Graphics Routines
 ; Author:	eeDean Belfield
 ; Created:	06/05/2021
-; Last Updated:	21/06/2021
+; Last Updated:	12/07/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Added Plot modes for Plot_ULA.
@@ -24,6 +24,7 @@
 ; 11/06/2021:	Fixed logic to check zero-length lines
 ; 15/06/2021:	Set screen window and origin as per BBC (1280x1024, bottom left = 0,0)
 ; 21/06/2021:	Added support for CLG and Get_Char (Modes 1 to 3)
+; 12/07/2021:	Added Get_Character_Data
 
 			MODULE	NEXT_GRAPHICS 
 
@@ -153,7 +154,7 @@ Set_Scroll_Reg:		LD	(SCRLPOS_Y), A
 ;  F: C if character match, otherwise NC
 ;
 Get_Char:		CALL	Get_Char_1		; Get character data in R00 to R07
-			LD	DE, 0x3D00		; Start of system font
+			LD	DE, ROM_Charset		; Start of system font
 			LD	C, 32 			; ASCII code
 0:			LD	B, 8			; Row counter
 			PUSH	DE 			; Push the character address
@@ -400,6 +401,32 @@ Set_Palette_RGB:	NEXTREG	0x40, A 		; Select the colour to change
 			LD	C, A
 			NEXTREG	0x44, A 		; Write out final bit 
 			RET 
+
+; Get charset bitmap data address
+;  E: Character to print
+; Retuns
+; DE: Charset bitmap data address
+;  A: High byte of address (<0x40 for ROM)
+;
+@Get_Character_Data:	LD	D, E 			; Store the character code
+			RLC 	E
+			RLC 	E
+			RLC 	E
+			SETAE 				; Get the mask
+			LD	E, A
+			LD	A, (UDG_MASK)
+			AND	E			; Result is NZ if character data in RAM,
+			LD 	A, (high ROM_Charset)-1	; Address of character set in ROM (HIGH)
+			JR	Z, 1F			
+			LD	A, D 			; Need to calculate address in RAM for UDG
+			SUB	128			; Characters 128 upwards are stored first
+			LD	D, A 
+			LD	A, (HIMEM+1)		; Base address of characters is HIMEM
+1:			LD	E, 8 			; Multiply the character code by 8
+			MUL	D, E
+			ADD 	A, D
+			LD 	D, A
+			RET			
 
 ; ----------------------------------------------------------------------------
 ; Graphics Primitives

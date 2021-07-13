@@ -3,7 +3,7 @@
 ;		Spectrum Next Initialisation
 ; Author:	Dean Belfield
 ; Created:	04/05/2021
-; Last Updated:	24/06/2021
+; Last Updated:	12/07/2021
 ;
 ; Modinfo:
 ; 13/05/2021:	Added BUILD_VERSION
@@ -18,6 +18,7 @@
 ; 11/06/2021:	Now uses NREG definitions in equs.z80
 ; 14/06/2021:	Setup default (Spectrum) palette for L2 modes
 ; 24/06/2021:	Disabled RAM contention (Peripheral 3)
+; 12/07/2021:	Added Reserve_UDG
 
 			MODULE	NEXT_INIT
 
@@ -80,6 +81,35 @@ Initialise_RAM:		LD	HL, RAM.Start
 			LD	A, %01000111:	LD (PLOT_COLOUR), A
 			LD	A, "$": 	LD (FDRIVE), A
 			RET
+
+; Set HIMEM to reserve some space for UDGS
+;  A: Number of banks to reserve (0 to 6)
+; Returns:
+; DE: HIMEM value for OSINIT
+;
+Reserve_UDG:		PUSH	AF
+			LD	D, A			; Calculate HIMEM
+			LD	A, (high @RAM_Top) - 1
+			SUB	D
+			LD	D, A 
+			LD	E, 0
+			POP	AF
+			LD	HL, Reserve_UDG_Table	; Get the UDG_MASK
+			ADD	HL, A 
+			LD	A, (HL)
+			LD	(UDG_MASK), A
+			RET
+;
+; The mask is 1 bit per &20 (32) characters and is used to determine whether to read the character data from ROM (0) or RAM (1)
+; The bits are read left to right, so %10000000 is characters 0-31, and %00000001 is characters 224 to 255
+;
+Reserve_UDG_Table:	DB	%00001000		; Characters &80 to &9F only are redefineable (default)
+			DB	%00001100		; Characters &80 to &BF are redefineable
+			DB	%00001110		; Characters &80 to &DF are redefineable 
+			DB	%00001111		; Characters &80 to &FF are redefineable
+			DB	%01001111		; Characters &20 to &3F, &80 to &FF are redefineable
+			DB	%01101111		; Characters &20 to &5F, &80 to &FF are redefineable
+			DB	%01111111		; Characters &20 to &FF are redefineable
 
 ;
 ; Initialise the L2 palette

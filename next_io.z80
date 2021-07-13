@@ -3,7 +3,7 @@
 ;		Spectrum Next I/O Routines
 ; Author:	Dean Belfield
 ; Created:	03/05/2021
-; Last Updated:	21/06/2021
+; Last Updated:	12/07/2021
 ;
 ; Modinfo:
 ; 10/05/2021:	Started implementing VDU engine
@@ -19,6 +19,7 @@
 ; 26/05/2021:	Added support code for Layer 2 modes 2 and 3
 ; 16/06/2021:	Added VDU_GS (Set graphics origin)
 ; 21/06/2021:	Added VDU_DLE (CLG)
+; 12/07/2021:	Added VDU_ETB (UDG)
 
 			MODULE	NEXT_IO
 
@@ -185,12 +186,13 @@ VDU_READ_BYTES:		LD	IX, VDU_STATE		; Indexes - 0: STATE, 1: PTR, 2: COUNT
 			DEC	A 			; Index from 1
 			LD	IX, VDU_BUFFER
 			CALL	SWITCH_A
-			DEFW	VDU_EXEC_PLOT
+			DEFW	VDU_EXEC_PLOT		
 			DEFW	VDU_EXEC_COLOUR
 			DEFW	VDU_EXEC_GCOL 
 			DEFW	VDU_EXEC_TAB 
 			DEFW	VDU_EXEC_MODE
 			DEFW	VDU_EXEC_GORIGIN
+			DEFW	VDU_EXEC_UDG
 
 ; Handle all control characters
 ;  A: Character code
@@ -324,7 +326,9 @@ VDU_SYN:		LD	B, 1			; 1 byte (colour)
 
 ; &17 ETB - Define display character and other commands; used by ON and OFF
 ;
-VDU_ETB:		RET 
+VDU_ETB:		LD	B, 9			; 9 bytes (char, b0, b1, ..., b7)
+			LD	A, 7			; State 7: UDG
+			JR	VDU_SET_STATE
 
 ; &19 EM  - PLOT k, x, y
 ;
@@ -421,6 +425,18 @@ VDU_EXEC_GORIGIN:	LD	HL, (VDU_BUFFER + 0)
 			LD	HL, (VDU_BUFFER + 2)
 			LD	(PLOTORG_Y), HL 
 			RET 
+
+; Define a UDG
+;
+VDU_EXEC_UDG:		LD	HL, VDU_BUFFER
+			LD	E, (HL)			; Get character code
+			CALL	Get_Character_Data	; Get character data address in DE
+			CP	0x40			; Is the character in ROM (A=high byte of address)
+			RET 	C			; Yes, so return
+			INC	L			; Copy the 8 bytes of character
+			LD	BC, 8			; data into RAM
+			LDIR
+			RET
 
 ; Scan the keyboard
 ; A modified version of the ZX Spectum 48K rom routine

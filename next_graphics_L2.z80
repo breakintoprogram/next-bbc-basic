@@ -3,7 +3,7 @@
 ;		Spectrum Next Layer 2 Graphics Routines
 ; Author:	Dean Belfield
 ; Created:	13/05/2021
-; Last Updated:	21/06/2021
+; Last Updated:	12/07/2021
 ;
 ; Modinfo:
 ; 14/05/2021:	Added plot modes
@@ -18,6 +18,7 @@
 ; 13/06/2021:	Now uses NREG definitions in equs.z80; Added Mode 3 graphics and text code
 ; 14/06/2021:	Mode 3 screen now cleared correctly; Fixed bug in Clear_Screen; Fixed bug in Draw_Horz_Line_M3
 ; 21/06/2021:	Added support for Get_Char and CLG
+; 12/07/2021:	Added support for UDGs
 
 
 			MODULE	NEXT_GRAPHICS_L2
@@ -148,12 +149,8 @@ Adjust_SCRLPOS_P:	LD	A, (SCRLPOS_Y)		; Get Y scroll position
 ;  L: X Coordinate
 ;  H: Y Coordinate
 ;
-Print_Char_M3:		CALL	Get_Char_Address_M3			
-			LD 	D, 8			; Multiply the character byte by 8
-			MUL 	D,E
-			LD 	A,0x3C			; Address of character set in ROM (HIGH)
-			ADD 	A,D
-			LD 	D,A
+Print_Char_M3:		CALL	Get_Char_Address_M3		
+			CALL	Get_Character_Data	
 			LD	BC, (TEXT_FOREGROUND)	; C: Foreground, B: Background
 			CALL	Get_Colour_Nibbles
 			LD	IXH, 8			; Outer loop counter
@@ -197,11 +194,7 @@ Print_Char_M3:		CALL	Get_Char_Address_M3
 			RET
 ;
 Print_Char_M2:		CALL	Get_Char_Address_M2
-			LD 	D, 8			; Multiply the character byte by 8
-			MUL 	D, E
-			LD 	A, 0x3C			; Address of character set in ROM (HIGH)
-			ADD 	A, D
-			LD 	D, A
+			CALL	Get_Character_Data
 			LD	BC, (TEXT_FOREGROUND)	; C: Foreground, B: Background
 			LD	IXH, 8			; Outer Loop counter
 1:			PUSH	HL
@@ -224,11 +217,7 @@ Print_Char_M2:		CALL	Get_Char_Address_M2
 			RET
 ;
 Print_Char_M1:		CALL 	Get_Char_Address_M1
-			LD 	D, 8			; Multiply the character byte by 8
-			MUL 	D,E
-			LD 	A,0x3C			; Address of character set in ROM (HIGH)
-			ADD 	A,D
-			LD 	D,A
+			CALL	Get_Character_Data
 			LD	BC, (TEXT_FOREGROUND)	; C: Foreground, B: Background
 			LD	IXH,8			; Outer Loop counter
 1:			PUSH	HL
@@ -505,7 +494,6 @@ Point_M3:		CALL	Get_Pixel_Address_M3
 ; Plot a point
 ; HL: Y
 ; DE: X
-;	
 ;
 Plot_M3:		CALL	Adjust_SCRLPOS_P
 			CALL	Get_Pixel_Address_M3
@@ -513,37 +501,34 @@ Plot_M3:		CALL	Adjust_SCRLPOS_P
 			JR	C, 1F
 			AND	0x0F			; Left hand pixel
 			SWAPNIB		
-			LD	E, A 			
-			LD	A, (HL)
-			AND 	0x0F
+			LD	E, A 
+			LD	D, 0x0F			; Pixel mask
 			JR	2F 
 1:			AND	0x0F			; Right hand pixel
 			LD	E, A 
-			LD	A, (HL)
-			AND	0xF0
-2:			OR	E 
-			LD	(HL), A
-			Z80PORT	0x123B, %00000010	; Disable memory writes
-			RET
+			LD	D, 0xF0			; Pixel mask
+			JR	2F 
 ;
 Plot_M2:		CALL	Adjust_SCRLPOS_P
 			CALL	Get_Pixel_Address_M2
-			CALL	Plot
-			Z80PORT	0x123B, %00000010	; Disable memory writes
-			RET
+			JR	1F
 ;
 Plot_M1:		CALL	NEXT_GRAPHICS.NEXT_GRAPHICS_ULA.Adjust_SCRLPOS_P
 			CALL	Get_Pixel_Address_M1
-			CALL	Plot
+1:			LD	A, (PLOT_COLOUR)
+			LD	E, A 
+			LD	D, 0
+2:			CALL	Plot
 			Z80PORT	0x123B, %00000010	; Disable memory writes
 			RET
-;			
+
+; Write out the pixel data
+; D: Mask
+; E: Pixel data to write
+;
 Plot:			LD	A, (PLOT_MODE)		; Check plot mode is valid
 			CP	7
 			RET	NC			; Do nothing if plot mode >=7
-			LD	A, (PLOT_COLOUR)
-			LD	E, A
-			LD	A, (PLOT_MODE)
 			CALL	SWITCH_A
 Plot_Table:		DEFW	Plot_SET
 			DEFW	Plot_OR
@@ -553,26 +538,37 @@ Plot_Table:		DEFW	Plot_SET
 			DEFW	Plot_NOP
 			DEFW	Plot_CLR
 
-Plot_CLR:		LD	(HL), 0
+Plot_CLR:		LD	A, (HL)
+			AND	D
+			LD	(HL), A 
 Plot_NOP:		RET
-Plot_SET:		LD	(HL), E
+;
+Plot_SET:		LD	A, (HL)
+			AND	D
+			OR	E
+			LD	(HL), A
 			RET
+;
 Plot_AND:		LD	A, (HL)
 			AND	E
 			LD	(HL), A
 			RET 
+;
 Plot_OR:		LD	A, (HL)
 			OR	E
 			LD	(HL), A 
 			RET
+;
 Plot_XOR:		LD	A, (HL)
 			XOR	E
 			LD	(HL), A 
 			RET 
-Plot_NOT:		LD	A, (HL)
+;
+Plot_NOT:		LD	A, D 
 			CPL
-			LD	(HL), A 
-			RET 
+			XOR 	(HL)
+			LD	(HL), A
+			RET
 
 ; Draw Horizontal Line routine
 ; HL: Y coordinate
