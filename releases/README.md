@@ -9,6 +9,15 @@ Please make sure you use the latest version of ZEsarUX (9.3 Beta 1 at time of wr
 
 I would also recommend you copy the nex file to the img file and launch from the Next browser. ZEsarUX does not initialise the Next correctly if the nex file is dragged into the emulator or loaded using Smart Load. This is by design, but will prevent the disk commands from working. I would recommend this method anyway.
 
+##### 20210713: Version 0.15
+- Fixed bug in PUTCSR; TAB(X,Y) now sets Y coordinate correctly
+- Modifications to GET and PUT
+	- Added GET(x, y) and GET$(x, y) to read character from screen position (x, y)
+	- Changed GET(n, 1) to GET(n OR &10000)
+	- Changed PUT(n, 1) to PUT(n OR &10000)
+- Added support for UDGs
+	- *FX 20: Reserve space for UDGs in RAM
+	- VDU 23, char, b0, b1, ..., b7: Define a character
 ##### 20210706: Version 0.14
 - RAM contention is now switched off for 3.5Mhz CPU speed
 - GCOL modes for PLOT now work in Mode 3
