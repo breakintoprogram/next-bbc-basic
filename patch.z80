@@ -24,12 +24,17 @@
 ; 05/07/2021:	Added OPT, OSOPEN, OSSHUT, OSBGET, OSBPUT, OSSTAT, GETPTR and PUTPTR
 ; 10/07/2021:	Fixed bug in PUTCSR and optimised PUTSCR and GETCSR; Modified GET_PORT and PUT
 ; 14/07/2021:	JGH: MODE sends to OSWRCH, OSBYTE 0 returns L=ZX Spectrum, INKEY(neg) returns, INKEY-256 returns machine
+; 14/07/2021:	JGH: Got INKEY Carry wrong way around. JGH: DOH! Forgot to remove RET from OSCALL.
 
 			MODULE PATCH
 
 @GETIMS:		EQU	NEXT_RTC.GET_DATE_STRING	; Get the time string from the real-time clock module
 @OSWRCH:		EQU	NEXT_IO.Print_Char		; Write a character out
 @OSLINE			EQU 	EDITOR.Edit_Line		; Line editor
+
+;; These two seems to have vanished from the source
+;SPTONULL	RET
+;SKIPNOTSP	RET
 
 ; MODE n: Set video mode
 ;
@@ -100,6 +105,7 @@
 ;   Inputs: HL = time limit (centiseconds)
 ;  Outputs: Carry reset if time-out
 ;           If carry set A = character
+; ***NB*** Carry is opposite to BBC API
 ; Destroys: A,H,L,F
 ;
 @OSKEY:			BIT	7,H
@@ -134,10 +140,11 @@ ESCTEST:		LD	A, (KEYCODE)
 			JR	NZ,OSNEGKEY1	; Not INKEY(0xFFxx)
 			LD	A,L
 			AND	A		; Is it INKEY(0xFF00) ?
-			LD	HL,0x00E8	; INKEY-256 -> ZX Spectrum Next
+			LD	A,0xE8		; INKEY-256 -> ZX Spectrum Next
+			SCF			; Carry=Ok - NB! Opposite to BBC API
 			RET	Z
-OSNEGKEY1:		LD	HL,0		; All other INKEY(-key) -> FALSE
-			AND	A		; Clear Carry
+OSNEGKEY1:		LD	A,0		; All other INKEY(-key) -> FALSE
+			SCF			; Carry=Ok - NB! Opposite to BBC API
 			RET			; To do, add keyboard scanning
 
 ;
@@ -798,14 +805,14 @@ SETOPT:			LD	(OPTVAL), A
 
 ; ----------------------------------------------------------------------------
 
-: BBC API MOS Call
+; BBC API MOS Call
 ; CALL &FFxx/USR &FFxx
 ;
 ; IY=destination, &FF00+nn
 ; IX=>resident variables
 ; SP=>return to raw call, return to exec loop
 ;
-@OSCALL:		RET
+@OSCALL:
 ;IF MOVEOS
 ;	DEFB &FD		; LD IYH
 ;	LD   H,&FF		; Modify entry point address
