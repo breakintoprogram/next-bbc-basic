@@ -1,9 +1,10 @@
 ;
-; Title:	BBC Basic Interpreter - Z80 version
+; Title:	BBC BASIC Interpreter - Z80 version
 ;		Patch file for Spectrum Next
+;		I/O layer between BASIC and the host
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	10/07/2021
+; Last Updated:	14/07/2021 JGH
 ;
 ; Modinfo:
 ; 09/05/2021:	Fixed plot mode and bug in COMDS table
@@ -22,6 +23,7 @@
 ; 15/06/2021:	Plot, Draw, Move and Line now call Transform_Coords
 ; 05/07/2021:	Added OPT, OSOPEN, OSSHUT, OSBGET, OSBPUT, OSSTAT, GETPTR and PUTPTR
 ; 10/07/2021:	Fixed bug in PUTCSR and optimised PUTSCR and GETCSR; Modified GET_PORT and PUT
+; 14/07/2021:	JGH: MODE sends to OSWRCH, OSBYTE 0 returns L=ZX Spectrum, INKEY(neg) returns, INKEY-256 returns machine
 
 			MODULE PATCH
 
@@ -33,8 +35,10 @@
 ;
 @MODE:			CALL    EXPRI
 			EXX
+			LD	A, 22
+			CALL	OSWRCH
 			LD	A, L
-			CALL	NEXT_GRAPHICS.Set_Video_Mode
+			CALL	OSWRCH
 			JP	XEQ
 
 ; CLG: clear the graphics screen
@@ -98,7 +102,9 @@
 ;           If carry set A = character
 ; Destroys: A,H,L,F
 ;
-@OSKEY:			LD	A, (KEYCODE)	; Read keyboard
+@OSKEY:			BIT	7,H
+			JR	NZ,@OSNEGKEY	; Negative INKEY
+@OSKEYLOOP:		LD	A, (KEYCODE)	; Read keyboard
 			OR	A		; If we have a character
 			JR	NZ, 1F		; Then process it
 			LD	A,H		; Check if HL is 0 (this is passed by INKEY() function
@@ -106,7 +112,7 @@
 			RET	Z 		; If it is then ret
 			HALT			; Bit of a bodge so this is timed in ms
 			DEC	HL 		; Decrement the counter and 
-			JR	@OSKEY 		; loop
+			JR	@OSKEYLOOP	; loop
 1:			CP	0x1B		; If we are not pressing ESC, 
 			SCF 			; then flag we've got a character
 			RET	NZ		
@@ -123,6 +129,17 @@ ESCTEST:		LD	A, (KEYCODE)
 			CP	0x1B		; ESC	
 			JR	Z,ESCSET
 			RET
+;
+@OSNEGKEY:		INC	H
+			JR	NZ,OSNEGKEY1	; Not INKEY(0xFFxx)
+			LD	A,L
+			AND	A		; Is it INKEY(0xFF00) ?
+			LD	HL,0x00E8	; INKEY-256 -> ZX Spectrum Next
+			RET	Z
+OSNEGKEY1:		LD	HL,0		; All other INKEY(-key) -> FALSE
+			AND	A		; Clear Carry
+			RET			; To do, add keyboard scanning
+
 ;
 @TRAP:			CALL	ESCTEST
 @LTRAP:			LD	A,(FLAGS)
@@ -144,7 +161,7 @@ ESCTEST:		LD	A, (KEYCODE)
          		CALL	NEXT_INIT.Reserve_UDG	; Reserve RAM for UDG; returns DE = RAMTOP
          		LD 	HL, @USER
 			XOR	A
-			LD	(@FLAGS), A		; Clear flags and set F = Z
+			LD	(@FLAGS), A		; Clear flags and set Z=no command line
          		RET	
 
 ;OSCLI - Process an "operating system" command
@@ -287,7 +304,7 @@ STAR_FX:		CALL	ASC_TO_NUMBER
 			JR	Z, STAR_FX_19 
 			CP	20
 			JR	Z, STAR_FX_20
-			JP 	HUH
+			RET
 
 ; OSCLI FX 19: Wait 1/50th of a second
 ;
@@ -781,9 +798,49 @@ SETOPT:			LD	(OPTVAL), A
 
 ; ----------------------------------------------------------------------------
 
-; Stuff not implemented yet
-; There's also more stuff in sorry.z80
+: BBC API MOS Call
+; CALL &FFxx/USR &FFxx
+;
+; IY=destination, &FF00+nn
+; IX=>resident variables
+; SP=>return to raw call, return to exec loop
 ;
 @OSCALL:		RET
+;IF MOVEOS
+;	DEFB &FD		; LD IYH
+;	LD   H,&FF		; Modify entry point address
+;ENDIF
+	LD   HL,OSCALLRETURN
+	EX   (SP),HL		; Replace return address
+	LD   A,(IX+4)		; Get A from A%
+	LD   E,(IX+20)		; Get E from E%
+	LD   H,(IX+100)		; Get H from Y%
+	LD   L,(IX+96)		; Get L from X%
+;
+; for the mo...
+	PUSH IY
+	POP  BC
+	LD   A,C		; Low byte of MOS address
+	CP   0xF4
+	LD   A,(IX+4)		; Get A from A%
+	RET  NZ			; Ignore everything except OSBYTE
+	AND  A
+	RET  NZ			; Ignore everything except OSBYTE 0
+	LD   L,31		; L=31=ZX Spectrum
+	RET
+;	
+;	JP   (IY)		; Jump to entry point
+@OSCALLRETURN:
+	PUSH AF			; Form return value from FHLA
+	LD   A,L
+	LD   L,H
+	EXX
+	POP  BC
+	LD   H,A
+	LD   L,B
+	LD   A,C
+	EXX
+	LD   H,A
+	RET
 
 			ENDMODULE
