@@ -2,13 +2,14 @@
 ; Title:	BBC Basic for Spectrum Next - Miscellaneous helper functions
 ; Author:	Dean Belfield
 ; Created:	10/05/2021
-; Last Updated:	24/05/2021
+; Last Updated:	15/07/2021
 ;
 ; Modinfo:
 ; 15/05/2021:	Changed ASC_TO_HEX to ASC_TO_NUMBER; now parses decimal or hex
 ; 16/05/2021:	Added SWITCH_A
 ; 23/05/2021:	Added HLDE_TO_FPP, PRINT_BCD, NULLTOCR and CRTONULL
 ; 24/05/2021:	CRTONULL now preserves BC
+; 15/07/2021:	Added SKIPNOTSP, NULLTOSP and SPTONULL
 
 ; Read a number and convert to binary
 ; If prefixed with &, will read as hex, otherwise decimal
@@ -67,7 +68,16 @@ SKIPSP:			LD      A, (HL)
         		CP      ' '
         		RET     NZ
         		INC     HL
-        		JR      SKIPSP	
+        		JR      SKIPSP
+
+; Skip a string
+; HL: Pointer in string buffer
+;
+SKIPNOTSP:		LD	A, (HL)
+			CP	' '
+			RET	Z 
+			INC	HL 
+			JR	SKIPNOTSP
 
 ; Convert a character to upper case
 ;  A: Character to convert
@@ -80,6 +90,14 @@ UPPRC:  		AND     7FH
 
 ; Convert the buffer to a null terminated string and back
 ;	
+NULLTOSP:		PUSH	BC 
+			LD	B, 0
+			LD	C, ' '
+			JR	0F
+SPTONULL:		PUSH	BC 
+			LD	B, ' '
+			LD	C, 0
+			JR	0F
 NULLTOCR:		PUSH 	BC
 			LD	B, 0
 			LD	C, CR 
