@@ -25,6 +25,7 @@
 ; 15/06/2021:	Set screen window and origin as per BBC (1280x1024, bottom left = 0,0)
 ; 21/06/2021:	Added support for CLG and Get_Char (Modes 1 to 3)
 ; 12/07/2021:	Added Get_Character_Data
+; 13/07/2021:	JGH: API uses RGB colours, MODE resets colours
 
 			MODULE	NEXT_GRAPHICS 
 
@@ -32,13 +33,14 @@
 			include "next_graphics_L2.z80"
 
 ; Clear the screen
+; NB: Should be "clear text|graphics window"
 ;
 CLG:			LD	A, (PLOT_COLOUR)
 			JR 	1F
 CLS:			LD	A, (TEXT_BACKGROUND)
 1:			LD	C, A
 			XOR	A 
-			LD	(SCRLPOS_Y), A 
+			LD	(SCRLPOS_Y), A 		; *BUG* CLG leaves text coords alone
 			LD	(CHARPOS_X), A 
 			LD	(CHARPOS_Y), A
 			LD	A, (VIDEO_MODE)
@@ -60,8 +62,9 @@ Set_Video_Mode:		AND	3
 			DEC 	E 			; Narrow cursor for Mode 3
 			DEC 	E
 1:			CALL	NEXT_CURSOR.Initialise
-			XOR	A 
-			LD	(BORDER_COLOUR), A
+			CALL	Reset_Colours
+;			XOR	A
+;			LD	(BORDER_COLOUR), A
 			LD	L, A 
 			LD	H, A 
 			LD	(PLOTORG_X), HL 
@@ -72,6 +75,16 @@ Set_Video_Mode:		AND	3
 			DEFW	NEXT_GRAPHICS_L2.Set_Video_Mode_M1
 			DEFW	NEXT_GRAPHICS_L2.Set_Video_Mode_M2
 			DEFW	NEXT_GRAPHICS_L2.Set_Video_Mode_M3
+
+Reset_Colours:		; to do: reset palette
+			LD	A,%01000111		; White foreground
+			LD	(TEXT_FOREGROUND),A
+			LD	(PLOT_COLOUR),A
+			XOR	A			; Black background
+			LD	(TEXT_BACKGROUND),A
+;			LD	(PLOT_BACKGROUND),A
+			LD	(PLOT_MODE),A
+			LD	C, A			; Black border
 
 ; Set border colour
 ;  C: Colour
@@ -84,9 +97,21 @@ Set_Border:		LD	A, C
 
 ; Set a colour
 ;  C: Colour
+;  =%0xxxxxxx - foreground
+;  =%000fibgr - set whole ink
+;  =%001xxbgr - set ink only
+;  =%01xxxxxx - extension
+;
+;  =%1xxxxxx  - background
+;  =%100fibgr - set whole paper
+;  =%101xxbgr - set paper only
+;  =%11xxxbgr - set border
 ;  B: Mode
 ;
-Set_Text_Colour:	LD	A, (VIDEO_MODE)
+Set_Text_Colour:	CALL	RGB_to_Spectrum	; Convert to hardware colour
+			CP	192
+			JR	NC,Set_Border	; COLOUR &C0+n
+			LD	A, (VIDEO_MODE)
 			CALL	SWITCH_A
 			DEFW	NEXT_GRAPHICS_ULA.Set_Text_Colour
 			DEFW	NEXT_GRAPHICS_L2.Set_Text_Colour
@@ -97,12 +122,32 @@ Set_Text_Colour:	LD	A, (VIDEO_MODE)
 ;  C: Colour
 ;  B: Mode
 ;
-Set_Plot_Colour:	LD	A, (VIDEO_MODE)
+Set_Plot_Colour:	CALL	RGB_to_Spectrum	; Convert to hardware colour
+			AND	%10011111	; Drop non-graphics operations
+			LD	C,A
+			LD	A, (VIDEO_MODE)
 			CALL	SWITCH_A
 			DEFW	NEXT_GRAPHICS_ULA.Set_Plot_Colour
 			DEFW	NEXT_GRAPHICS_L2.Set_Plot_Colour
 			DEFW	NEXT_GRAPHICS_L2.Set_Plot_Colour
 			DEFW	NEXT_GRAPHICS_L2.Set_Plot_Colour
+
+; Convert BBC API colour to Spectrum hardware colour
+; In:  C=    BBC RGB colour
+; Out: C= A= Spectrum BRG colour
+RGB_to_Spectrum:	LD	A,C	; Get RGB colour
+			AND	7	; A=%00000BGR
+			ADD	A	; A=%0000BGR0
+			CP	8	; A=%0000BGR0 Cy=b
+			CCF		; A=%0000BGR0 Cy=B
+			ADC	0	; A=%0000BGRB
+			AND	7	; A=%00000GRB
+			XOR	C	; A=%cccccgrb
+			AND	7	; A=%00000grb
+			XOR	C	; A=%cccccGRB
+			LD	C,A	; Return back to C
+			RET
+
 
 ; Vertical scroll routines
 ;
@@ -226,8 +271,13 @@ Pixel_Bounds_Check:	LD	A, D			; If either of the high bytes
 			RET	
 
 ; Scale X and Y coordinates
-; DE: X (0 to 1279) -> (0 to 255/320/640)
-; HL: Y (0 to 1023) -> (0 to 191/256)
+; Full screen X size:  20*N -> 0 to 1279  &000 to &500-1 (eg 10-col, 20-col, 40-col, 80-col MODEs)
+;                      32*N -> 0 to 1023  &000 to &400-1 (eg 16-col, 32-col, 64-col MODEs)
+;             Y size:  32*N -> 0 to 1023  &000 to &400-1 (eg 32-line MODEs)
+;                      24*N -> 0 to  767  &000 to &300-1 (eg 24-line MODEs)
+;
+;  DE: X (0 to 1279) -> (0 to 255/320/640)
+;  HL: Y (0 to 1023) -> (0 to 191/256)
 ; 
 Transform_Coords:	LD	BC, (PLOTORG_Y)	; Add the plot origin to Y
 			ADD	HL, BC 
@@ -308,6 +358,7 @@ Transform_Div:		EXX
 ; HL: Y
 ; Returns:
 ;  A: Point value
+; NB: Underlying primitive only returns Off/On, not colour
 ;
 Point:			CALL	Pixel_Bounds_Check
 			LD	A, 0
@@ -326,13 +377,13 @@ Point:			CALL	Pixel_Bounds_Check
 ;  A: Type
 ;
 Plot:			AND	%11111000		; Ignore bottom 3 bits of type
-			CP	64			; If less than 8, it's a line
+			CP	64			; If less than 64, it's a line
 			JP	C, Plot_Line 
-			JR	Z, Plot_Point		; If it is 8, then plot a point
+			JR	Z, Plot_Point		; 64+n -> then plot a point
 			CP	80	
-			JR	Z, Plot_Triangle
+			JR	Z, Plot_Triangle	; 80+n -> draw a trangle
 			CP	144
-			JP	Z, Plot_Circle		; Check for circle
+			JP	Z, Plot_Circle		; 144+n -> draw a circle
 			RET	
 
 ; Plot a point
@@ -374,11 +425,12 @@ Plot_Triangle:		JP 	Primitive_Triangle
 
 ; Set a palette colour
 ;  A: Colour to change (0 - 255)
-;  B: R colour (3 bits)
-;  C: G colour (3 bits)
-;  D: B colour (3 bits)
+;  B: R colour (3 bits - %rrrxxxxx)
+;  C: G colour (3 bits - %gggxxxxx)
+;  D: B colour (3 bits - %bbbxxxxx)
 ;
 Set_Palette_RGB:	NEXTREG	0x40, A 		; Select the colour to change
+; this looks wrong
 			LD	A, B			; Get RED component
 			AND	%00000111		; %00000RRR
 			SWAPNIB				; %0RRR0000
