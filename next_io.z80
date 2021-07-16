@@ -8,7 +8,7 @@
 ; Modinfo:
 ; 10/05/2021:	Started implementing VDU engine
 ; 11/05/2021:	Fixed bug in Scroll_Down
-; 13/05/2021:	Removed (C) symbol from keytable; 0x7F is now backspace
+; 13/05/2021:	Removed (C) symbol from keytable; 0x7F is now delete
 ; 14/05/2021:	Fixed bug in Print_Char - now preserves A
 ; 15/05/2021:	Restored (C) symbol in keytable as ASCII 0xA9; Updates for MODE command
 ; 16/05/2021:	VDU system now uses SWITCH_A
@@ -20,6 +20,8 @@
 ; 16/06/2021:	Added VDU_GS (Set graphics origin)
 ; 21/06/2021:	Added VDU_DLE (CLG)
 ; 12/07/2021:	Added VDU_ETB (UDG)
+; 13/07/2021:	JGH corrected VDU 19 count, added VDU 20, uses standard SS table, optimised CS-digit
+;		To do: cursor keys &80+n, will need editor updating
 
 			MODULE	NEXT_IO
 
@@ -48,9 +50,8 @@ Read_Keyboard:		CALL	Keyscan			; Scan the keyboard
 			INC	A			; Check for 0xFF
 			RET	Z			; Then no key has been pressed
 			DEC	A
-			LD	HL, KeyTable_Main	; Lookup the key value
+			LD	HL, KeyTable_Main	; Look up the key value
 			ADD 	HL, A
-
 			LD	A, (HL)			; Fetch the key value
 
 			CP	"A"			; Is it a letter?
@@ -75,50 +76,74 @@ Read_Keyboard:		CALL	Keyscan			; Scan the keyboard
 			LD	A, (HL)			; Get the character code
 			RET
 ;
-; It's not a letter at this point, but could be space or enter
+; It's not a letter at this point, but could be space or enter or shift
 ;
 3:			BIT	0, D 			; Check for caps
 			JR	NZ, 4F			; If pressed, we'll check for special cases
 			BIT	1, D			; Has symbol shift been pressed
 			RET	Z			; No, so just return the number
-			SUB	"0"			; Index from ASCII '0'
+			CP	"0"
+			JR	NC, SYMDIGIT		; SS+digit
+			AND	A			; $00, $0d, $20
+			JR	NZ, SYMDIGIT1
+			LD	A,2			; $02, $0d, $20
+SYMDIGIT1:		AND	3			; $02, $01, $00
+			ADD	10			; $0c, $0b, $0a
+SYMDIGIT:		AND	15			; Index from ASCII '0'
 			LD	HL, KeyTable_SS_Numeric
 			ADD	HL, A
 			LD	A, (HL)
 			RET
 ;
-; Special cases, like escape, etc. Caps shift is pressed here
+; Special cases, like escape, etc. Caps shift+nonletter is pressed here
 ;
-4:			CP	" "			; Caps Shift + Space
-			JR	NZ, 5F 
-			LD	A, 0x1B			; Return ESC
-			RET 
-5:			CP	"0"			; Caps Shift + 0
-			JR	NZ, 6F
-			LD	A, 0x7F			; Return DEL
-			RET 
-6:			CP	"5"			; Caps Shift + 5
-			JR	NZ, 7F
-			LD	A, 0x08			; Return BS
-			RET
-7:			CP	"8"			; Caps Shift + 8
-			JR	NZ, 8F
-			LD	A, 0x09			; Return HT
-			RET 
-8:			CP	"6"			; Caps Shift + 6
-			JR	NZ, 9F
-			LD	A, 0x0A			; Return LF
-			RET 
-9:			CP	"7"			; Caps Shift + 7
-			JR	NZ, 10F
-			LD	A, 0x0B			; Return VT
-			RET 
-10:			CP	"2"			; Caps Shift + 2
-			LD	B, %00100000
-			JR	Z, Toggle_Flags
-			CP	"1"
-			LD	B, %00010000
-			RET	NZ
+4:			CP	"0"
+			JR	NC, 5F			; digits
+			AND	1
+			ADD	10			; $30-$39,$3a,$3b
+5:			AND	15			; '0','9',spc,ret
+			LD	HL, KeyTable_CS_Numeric
+			ADD	HL, A
+			LD	A, (HL)
+			CP	4
+			RET	NC			; Not toggle key
+
+			LD	B, %00010000		; Toggle
+			DEC	A
+			JR	Z, Toggle_Flags		; Caps Shift + 1
+			LD	B, %00100000		; Toggle CAPS
+			
+;			CP	" "			; Caps Shift + Space
+;			JR	NZ, 5F 
+;			LD	A, 0x1B			; Return ESC
+;			RET 
+;5:			CP	"0"			; Caps Shift + 0
+;			JR	NZ, 6F
+;			LD	A, 0x7F			; Return DEL
+;			RET 
+;6:			CP	"5"			; Caps Shift + 5
+;			JR	NZ, 7F
+;			LD	A, 0x88			; Return Cursor Left
+;			RET
+;7:			CP	"8"			; Caps Shift + 8
+;			JR	NZ, 8F
+;			LD	A, 0x89			; Return Cursor Right
+;			RET 
+;8:			CP	"6"			; Caps Shift + 6
+;			JR	NZ, 9F
+;			LD	A, 0x8A			; Return Cursor Down
+;			RET 
+;9:			CP	"7"			; Caps Shift + 7
+;			JR	NZ, 10F
+;			LD	A, 0x8B			; Return Cursor Up
+;			RET 
+;10:			CP	"2"			; Caps Shift + 2
+;			LD	B, %00100000		; Toggle CAPS
+;			JR	Z, Toggle_Flags
+;			CP	"1"			; Caps Shift + 1
+;			LD	B, %00010000		; Toggle
+;			RET	NZ
+
 Toggle_Flags:		LD	A, (FLAGS)		; Toggle Caps Lock bit in flags
 			XOR	B
 			LD	(FLAGS), A
@@ -218,8 +243,8 @@ VDU_CTRL_CHAR:		CALL	SWITCH_A
 			DW	VDU_DLE			; &10 DLE - Clear graphcs area (CLG)
 			DW	VDU_DC1			; &11 DC1 - Define text colour (COLOUR n)
 			DW	VDU_DC2			; &12 DC2 - Define graphics colour (GCOL a, n)
-			DW	VDU_DC3			; &13 DC3 - Define logical colour (COLOUR l, r, g, b)
-			DW	VDU_NUL			; &14 DC4 - Restore logical colours
+			DW	VDU_DC3			; &13 DC3 - Define logical colour (COLOUR l, p, r, g, b)
+			DW	VDU_DC4			; &14 DC4 - Set to default colours
 			DW	VDU_NUL			; &15 NAK - Disable VDU drivers or delete current line
 			DW	VDU_SYN			; &16 SYN - Select screen mode (MODE n)
 			DW	VDU_ETB			; &17 ETB - Define display character and other commands; used by ON and OFF
@@ -313,14 +338,14 @@ VDU_DC2:		LD	B, 2 			; 2 bytes (mode, colour)
 			LD	A, 3 			; State 3: GCOL
 			JR	VDU_SET_STATE
 
-; &12 DC3 - COLOUR a, r, g, b
+; &13 DC3 - COLOUR n, p, r, g, b
 ;
-VDU_DC3:		LD	B, 4			; 4 bytes (colour, r, g, b)
+VDU_DC3:		LD	B, 5			; 5 bytes (colour, p, r, g, b)
 			LD	A, 2 			; State 2: COLOUR
 			JR	VDU_SET_STATE
 
 ; &16 SYN - MODE n
-VDU_SYN:		LD	B, 1			; 1 byte (colour)
+VDU_SYN:		LD	B, 1			; 1 byte (mode)
 			LD	A, 5 			; State 5: MODE
 			JR	VDU_SET_STATE
 
@@ -379,25 +404,36 @@ VDU_EXEC_PLOT:		LD	HL, (PLOTPOS_X)		; Store the previous plot points
 			LD	(PLOTPOS_Y), HL
 			JP	NEXT_GRAPHICS.Plot
 
+; VDU 20: Reset colours
+;
+VDU_DC4:		JP	NEXT_GRAPHICS.Reset_Colours
+
 ; COLOUR:
 ; VDU 17,colour
-; VDU 19,colour,r,g,b
 ;
 VDU_EXEC_COLOUR:	LD	A, (VDU_PTR)		; Check number of parameters
-			CP	4			; If 4, then it is VDU 19,colour,r,g,b
-			JR	Z, 1F
+			CP	5			; If 5, then it is VDU 19,colour,p,r,g,b
+			JR	NC, 1F
 			DEC	A			
-			RET	NZ
+			RET	NZ			; Not 1, not VDU 17, exit
 			LD	B, 0			; If 1, then it is VDU 17,colour
 			LD	C, (IX + 0)
 			JP	NEXT_GRAPHICS.Set_Text_Colour
-1:			LD	A, (IX + 0)		; Get the palette colour to change
-			LD	B, (IX + 1)		; Get the R component
-			LD	C, (IX + 2)		; Get the G component
-			LD	D, (IX + 3)		; Get the B component
+
+; VDU 19,colour,phys,red,grn,blu
+;               0-15,ign,ign,ign
+;               16+ ,red,grb,blu - component strength %0.... to %1....
+1:			LD	A, (IX + 1)
+			CP	16
+			JR	NC, 2F			; Set palette components
+; to do, convert physical colour to palette components
+2:			LD	A, (IX + 0)		; Get the palette colour to change
+			LD	B, (IX + 2)		; Get the R component
+			LD	C, (IX + 3)		; Get the G component
+			LD	D, (IX + 4)		; Get the B component
 			JP	NEXT_GRAPHICS.Set_Palette_RGB
 
-; GCOL: VDU 18,mode,,colour
+; GCOL: VDU 18,mode,colour
 ;
 VDU_EXEC_GCOL:		LD	A, (VDU_BUFFER + 0)
 			LD	(PLOT_MODE), A 
@@ -413,9 +449,12 @@ VDU_EXEC_TAB:		LD	A, (VDU_BUFFER + 0)
 			LD	(CHARPOS_Y), A
 			RET 
 
-; MODE: VDU 16,mode
-;
+; MODE: VDU 22,mode
+; To do: map 0,3 -> 80col
+;            1,4 -> 40col
+;            ?   -> 32col
 VDU_EXEC_MODE:		LD	A, (VDU_BUFFER + 0)
+			XOR	3
 			JP 	NEXT_GRAPHICS.Set_Video_Mode
 
 ; Set graphics origin
@@ -439,7 +478,7 @@ VDU_EXEC_UDG:		LD	HL, VDU_BUFFER
 			RET
 
 ; Scan the keyboard
-; A modified version of the ZX Spectum 48K rom routine
+; A modified version of the ZX Spectum 48K ROM routine
 ; Returns:
 ;  E: Keycode (in the range 0 to 39), or 0xFF if no key pressed
 ;  D: Shift code - bit 0: caps, bit 1: symbol
@@ -488,13 +527,24 @@ KeyTable_Main:		DB	"B", "H", "Y", "6", "5", "T", "G", "V"
 			DB	$00, "L", "O", "9", "2", "W", "S", "Z"
 			DB	$20, $0D, "P", "0", "1", "Q", "A", $00
 
-KeyTable_SS_Numeric:	DB 	"_", "!", "@", "#", "$", "%", "&", "'", "(", ")"
-KeyTable_SS_Alpha:	DB	"~", "*", "?", $5C
-			DB	$00, "{", "}", "^"
-			DB	$00, "-", "+", "="
-			DB	".", ",", ";", $22
-			DB	$A9, "<", "|", ">"
-			DB	"]", "/", $00, $60
+KeyTable_CS_Numeric:
+;			DB	$7f, $01, $02, $83, $84, $88, $8A, $8B, $89, $89, $1b, $0d
+			DB	$7f, $01, $02, $83, $84, $08, $0A, $0B, $09, $89, $1b, $0d
+			;	 0    1    2    3    4    5    6    7    8    9   spc  ret
+
+KeyTable_SS_Numeric:	DB 	"_", "!", "@", "#", "$", "%", "&", "'", "(", ")", $20, $0d, $09
+			;	 0    1    2    3    4    5    6    7    8    9   spc  ret  ext
+
+KeyTable_SS_Alpha:	DB	"~", "*", "?", $5C, $87, "{", "}", "^"
+			;	 a    b    c    d    e    f    g    h
+			DB	$A9, "-", "+", "=", ".", ",", ";", $22
+			;	 i    j    k    l    m    n    o    p
+			DB	$85, "<", "|", ">", "]", "/", $86, $60
+			;	 q    r    s    t    u    v    w    x
 			DB	"[", ":"
+			;	 y    z
+
+; Available additional key combinations:
+; CS-RET, SS-SPC, SS-RET
 
 			ENDMODULE
