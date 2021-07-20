@@ -9,6 +9,17 @@ Please make sure you use the latest version of ZEsarUX (9.3 Beta 1 at time of wr
 
 I would also recommend you copy the nex file to the img file and launch from the Next browser. ZEsarUX does not initialise the Next correctly if the nex file is dragged into the emulator or loaded using Smart Load. This is by design, but will prevent the disk commands from working. I would recommend this method anyway.
 
+##### 20210720: Version 0.16
+- Implemented a handful of page &FF calls
+	- OSBPUT
+	- OSBGET
+	- OSWRCH
+	- OSBYTE (0x00, 0x13, 0x14, 0x80)
+- Added ADVAL function
+- Added Kempston mouse support (via ADVAL function)
+- Added *FX 11 to set keyboard auto-repeat delay
+- Added *FX 12 to set keyboard auto-repeat period
+- Refactoring and bug fixes
 ##### 20210713: Version 0.15
 - Fixed bug in PUTCSR; TAB(X,Y) now sets Y coordinate correctly
 - Modifications to GET and PUT
