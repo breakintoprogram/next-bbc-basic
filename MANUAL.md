@@ -151,6 +151,23 @@ Play a sound
 
 Sounds are played asynchronously; up to 5 notes can be queued ahead. If a sixth note is added to the queue, the SOUND command will block until there is space in the queue.
 
+### ADVAL(device)
+
+Read a device. Currently supports the Next Kempston mouse interface.
+Implemented as OSBYTE 0x80
+
+- `PRINT ADVAL(5)` Get X boundary (1280)
+- `PRINT ADVAL(6)` Get Y boundary (1024)
+- `X% = ADVAL(7)` Get X mouse position (0 <= X < 1280) 
+- `Y% = ADVAL(8)` Get Y mouse position (0 <= Y < 1024) 
+- `B% = ADVAL(9)` Get mouse buttons (8 bit value)
+
+Mouse buttons:
+Bits 7-4: Mouse wheel counter
+    Bit 2: Middle button
+    Bit 1: Left
+    Bit 0: Right
+
 ## STAR commands
 
 The star commands are all prefixed with an asterisk. These commands do not accept variables or expressions as parameters. Parameters are separated by spaces. Numeric parameters can be specified in hexadecimal by prefixing with an '&' character. Paths are unquoted. 
@@ -242,8 +259,31 @@ List contents of memory, hexdump and ASCII.
 
 ### FX n
 
+Implemented as OSBYTE
+
+- `*FX 11 n`: Set keyboard auto-repeat delay
+- `*FX 12 n`: Set keyboard auto-repeat period 
 - `*FX 19`: Wait for the horizontal sync
 - `*FX 20 n`: Reserve space for UDGs in RAM
+
+## OS commands
+
+The following OS calls are intercepted and pointed to an equivalent routine in the Z80 code:
+
+- `&FFF4` OSBYTE
+- `&FFEE` OSWRCH
+- `&FFD7` OSBGET
+- `&FFD4` OSBPUT
+
+Note: `OSBYTE` only supports 0x00, 0x13, 0x14 and 0x80.
+
+Example: Accessing mouse X coordinate in BASIC
+
+	10 A%=&80
+	20 L%=7
+	30 X%=USR &FFF4
+	40 PRINT TAB(0,0);X%,
+	50 GOTO 30
 
 ## Other considerations
 
