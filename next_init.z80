@@ -3,7 +3,7 @@
 ;		Spectrum Next Initialisation
 ; Author:	Dean Belfield
 ; Created:	04/05/2021
-; Last Updated:	12/07/2021
+; Last Updated:	15/07/2021
 ;
 ; Modinfo:
 ; 13/05/2021:	Added BUILD_VERSION
@@ -19,6 +19,7 @@
 ; 14/06/2021:	Setup default (Spectrum) palette for L2 modes
 ; 24/06/2021:	Disabled RAM contention (Peripheral 3)
 ; 12/07/2021:	Added Reserve_UDG
+; 15/07/2021:	Variables KEY_DELAY and KEY_REPEAT are initialised; Some KEY variables renamed
 
 			MODULE	NEXT_INIT
 
@@ -77,9 +78,11 @@ Initialise_RAM:		LD	HL, RAM.Start
 			LD	A, B 
 			OR	C 
 			JR	NZ, 1B
-			LD	A, %01000111:	LD (TEXT_FOREGROUND), A
-			LD	A, %01000111:	LD (PLOT_COLOUR), A
-			LD	A, "$": 	LD (FDRIVE), A
+			LD	A, %01000111:	  LD (TEXT_FOREGROUND), A
+			LD	A, %01000111:	  LD (PLOT_COLOUR), A
+			LD	A, "$":		  LD (FDRIVE), A
+			LD	A, CONF_KEYRPT_1: LD (KEY_DELAY), A 
+			LD	A, CONF_KEYRPT_2: LD (KEY_REPEAT), A
 			RET
 
 ; Set HIMEM to reserve some space for UDGS
@@ -143,7 +146,7 @@ Interrupt:		DI
 
 			CALL	NEXT_CURSOR.Move
 			CALL	NEXT_IO.Read_Keyboard
-			LD	(KEYCODE), A
+			LD	(KEY_CODE), A
 			CP	0x1B
 			CALL	Z, PATCH.ESCSET
 			LD	A, (TIME + 0)
