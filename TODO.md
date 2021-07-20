@@ -10,10 +10,16 @@
 - Improve the keyscan routine when selecting shifted characters
 - Get_Char does not recognise UDG characters
 - Get_Char in L2 - perhaps consider using background colour rather than foreground to pick out text
+- *FX 11 1 sets a really slow keyboard delay
 - *FX 20 should take a copy of the ROM charset into RAM
 - File issues
 	- BASIC does not close all open files on error
 ### Fixed Bugs / New Features
+#### Version 0.16
+- Implement OSCALL function
+- Implement ADVAL function
+- Add Kempston mouse support (via ADVAL function)
+- Add user-definable keyboard auto-repeat delay and period
 #### Version 0.15
 - Bug in PUTCSR; TAB(X,Y) ignores Y coordinate
 - Modifications to GET and PUT
