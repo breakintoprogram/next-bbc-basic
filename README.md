@@ -32,9 +32,13 @@ I'm attempting to make this as close to Version 4 of the BBC Basic Standard, res
 
 The code is written to be assembled by the SJASMPLUS assembler. Details of the toolchain I use [can be found here on my website](http://www.breakintoprogram.co.uk/computers/zx-spectrum-next/assembly-language/z80-development-toolchain).
 
-> Please note that from version 0.08 this project is no longer compatible with ZEsarUX 9.2. Please upgrade to ZEsarUX 9.3 Beta 1 or higher.
+> From version 0.08 this project is no longer compatible with ZEsarUX 9.2. Recommend upgrading to ZEsarUX 9.3 Beta 1 or higher.
 
-Every endeavour will be made to ensure the code is stable and will assemble, yet as this is a work-in-progress done in my spare time there will be instances where this is not the case. Please do not raise an issue in GIT, I'm more than likely aware of this!
+Every endeavour will be made to ensure the code is stable and will assemble, yet as this is a work-in-progress done in my spare time there will be instances where this is not the case.
+
+> Please avoid raising pull requests: The code will be in a state of flux for at least the next couple of months whilst I jiggle source around to fit the assembled code into 2 x 16K ROMs. I'm not quite geared up for collaboration just yet!
+
+> Raise an issue if you notice anything amiss; I will endeavour to get back to you. Bear with me if it takes a while to get back to you.
 
 ### Releases
 
