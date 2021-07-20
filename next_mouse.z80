@@ -1,0 +1,76 @@
+;
+; Title:	BBC Basic for Spectrum Next - Kempston Mouse support
+; Authors:	Dean Belfield
+; Created:	15/07/2021
+; Last Updated:	15/07/2021
+;
+; Modinfo:
+;
+
+			MODULE	NEXT_MOUSE
+
+Max_X:			EQU	1280
+Max_Y:			EQU	1024
+
+; Kempston mouse routine
+; Mouse_Buttons (1 = pressed):
+; Bits 7-4: Mouse wheel counter
+;    Bit 2: Middle button
+;    Bit 1: Left
+;    Bit 0: Right
+;
+Read_Buttons:		LD	BC,0xFADF		; Port for buttons
+			IN	A, (C)
+			AND	%11110111		; Mask out bit 3
+			XOR	%00000111		; Invert the mouse buttons for convenience
+			RET
+
+Read_X:			LD	BC, 0xFBDF		; Port for X axis
+			LD	HL, MOUSE_DX
+			CALL	Read_Port
+			LD	HL, (MOUSE_CX)
+			ADD	HL, BC
+			BIT	7, H
+			JR	Z, 1F
+			LD	HL, 0
+			JR	2F
+1:			LD	A, H 
+			SUB	high Max_X
+			JR	C, 2F
+			LD	HL, Max_X - 1
+2:			LD	(MOUSE_CX), HL
+			RET
+
+Read_Y:			LD	BC, 0xFFDF		; Port for Y axis
+			LD	HL, MOUSE_DY
+			CALL	Read_Port
+			LD	HL, (MOUSE_CY)
+			ADD	HL, BC
+			BIT	7, H
+			JR	Z, 1F
+			LD	HL, 0
+			JR	2F
+1:			LD	A, H 
+			SUB	high Max_Y 
+			JR	C, 2F
+			LD	HL, Max_Y - 1
+2:			LD	(MOUSE_CY), HL
+			RET
+
+; Read port and get 16-bit signed DX of mouse pointer
+; HL: Pointer to MOUSE_DX or MOUSE_DY
+; BC: Port
+; Returns:
+; BC: Signed mouse velocity
+;
+Read_Port:		IN	A, (C)			; Current mouse X
+			LD	C, (HL)			; Previous mouse X
+			LD	(HL), A 		; Store new mouse X
+			SUB	C			; Get difference
+			LD	C, A 			; Sign extend to 16 bits
+			ADD 	A, A 
+			SBC	A 
+			LD 	B, A
+			RET
+
+			ENDMODULE
