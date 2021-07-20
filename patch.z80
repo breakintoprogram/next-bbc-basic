@@ -3,7 +3,7 @@
 ;		Patch file for Spectrum Next
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	10/07/2021
+; Last Updated:	14/07/2021
 ;
 ; Modinfo:
 ; 09/05/2021:	Fixed plot mode and bug in COMDS table
@@ -22,6 +22,7 @@
 ; 15/06/2021:	Plot, Draw, Move and Line now call Transform_Coords
 ; 05/07/2021:	Added OPT, OSOPEN, OSSHUT, OSBGET, OSBPUT, OSSTAT, GETPTR and PUTPTR
 ; 10/07/2021:	Fixed bug in PUTCSR and optimised PUTSCR and GETCSR; Modified GET_PORT and PUT
+; 14/07/2021:	Implemented ADVAL, OSCALL and OSBYTE; Some KEY variables renamed
 
 			MODULE PATCH
 
@@ -76,11 +77,11 @@
 
 ; Read character from keyboard (blocking)
 ;
-@OSRDCH:		LD	A, (KEYCODE)	; Read keyboard
+@OSRDCH:		LD	A, (KEY_CODE)	; Read keyboard
 			OR	A 		
 			JR	Z, OSRDCH	; Loop until key is pressed
 			PUSH	AF
-1:			LD	A, (KEYCODE)	; And same again
+1:			LD	A, (KEY_CODE)	; And same again
 			OR	A 
 			JR	NZ, 1B 		; But loop until key is released
 			POP 	AF  		; Return the keycode
@@ -98,7 +99,7 @@
 ;           If carry set A = character
 ; Destroys: A,H,L,F
 ;
-@OSKEY:			LD	A, (KEYCODE)	; Read keyboard
+@OSKEY:			LD	A, (KEY_CODE)	; Read keyboard
 			OR	A		; If we have a character
 			JR	NZ, 1F		; Then process it
 			LD	A,H		; Check if HL is 0 (this is passed by INKEY() function
@@ -119,7 +120,7 @@ ESCSET: 		PUSH    HL
 ESCDIS: 		POP     HL
         		RET	
 ;
-ESCTEST:		LD	A, (KEYCODE)
+ESCTEST:		LD	A, (KEY_CODE)
 			CP	0x1B		; ESC	
 			JR	Z,ESCSET
 			RET
@@ -146,6 +147,45 @@ ESCTEST:		LD	A, (KEYCODE)
 			XOR	A
 			LD	(@FLAGS), A		; Clear flags and set F = Z
          		RET	
+
+;OSCALL - Intercept page &FF calls and provide an alternative address
+;
+;&FFF7:	OSCLI	Execute *command.
+;&FFF4:	OSBYTE	Various byte-wide functions.
+;&FFF1:	OSWORD	Various control block functions.
+;&FFEE:	OSWRCH	Write character to output stream.
+;&FFE7:	OSNEWL	Write NewLine to output stream.
+;&FFE3:	OSASCI	Write character or NewLine to output stream.
+;&FFE0:	OSRDCH	Wait for character from input stream.
+;&FFDD:	OSFILE	Perform actions on whole files or directories.
+;&FFDA:	OSARGS	Read and write information on open files or filing systems.
+;&FFD7:	OSBGET	Read a byte from an a channel.
+;&FFD4:	OSBPUT	Write a byte to a channel.
+;&FFD1:	OSGBPB	Read and write blocks of data.
+;&FFCE:	OSFIND	Open or close a file.
+;
+@OSCALL:		LD	HL, OSCALL_TABLE
+1:			LD	A, (HL)
+			INC	HL
+			CP	0xFF
+			RET	Z 
+			CP	IYL
+			JR	Z, 2F 
+			RET	NC
+			INC	HL 
+			INC	HL 
+			JR	1B 
+2:			LD	A, (HL)
+			LD	IYL, A 
+			INC	HL 
+			LD	A, (HL) 
+			LD	IYH, A 
+			RET
+@OSCALL_TABLE:		DB 	0xD4: DW OSBPUT
+			DB 	0xD7: DW OSBGET
+			DB 	0xEE: DW OSWRCH
+			DB	0xF4: DW OSBYTE
+			DB	0xFF	
 
 ;OSCLI - Process an "operating system" command
 ;
@@ -280,35 +320,112 @@ STAR_DRIVE:		CALL	SKIPSP
 
 ; OSCLI FX n
 ;
-STAR_FX:		CALL	ASC_TO_NUMBER
-			CALL	SKIPSP
-			LD	A, E
-			CP	19
-			JR	Z, STAR_FX_19 
-			CP	20
-			JR	Z, STAR_FX_20
+STAR_FX:		CALL	ASC_TO_NUMBER	; C: FX #
+			LD	C, E
+			CALL	ASC_TO_NUMBER	; B: First parameter
+			LD	B, E
+			CALL	ASC_TO_NUMBER	; E: Second parameter
+			LD	L, B 		; L: First parameter
+			LD	H, E 		; H: Second parameter
+			LD	A, C 		; A: FX #, and fall through to OSBYTE
+;
+; OSBYTE
+;  A: FX #
+;  L: First parameter
+;  H: Second parameter
+;
+OSBYTE:			CP	0x00
+			JR	Z, OSBYTE_00
+			CP	0x0B
+			JR	Z, OSBYTE_0B
+			CP	0x0C
+			JR	Z, OSBYTE_0C
+			CP	0x13
+			JR	Z, OSBYTE_13
+			CP	0x14
+			JR	Z, OSBYTE_14
+			CP	0x80
+			JR	Z, OSBYTE_80
 			JP 	HUH
 
-; OSCLI FX 19: Wait 1/50th of a second
+; OSBYTE 0x00 (FX 0): Get OS version
 ;
-STAR_FX_19:		HALT			
-			RET
+OSBYTE_00:		LD	L, CONF_OSID	; ZX Spectrum Next OS code
+			JP	EVAL.COUNT0 
 
-; OSCLI FX 20,n: Explode/implode user defined character font RAM
+; OSBYTE 0x0B (FX 11) Set keyboard auto-repeat delay
 ;
-STAR_FX_20:		CALL	ASC_TO_NUMBER
-			LD	A, E 
+OSBYTE_0B:		LD	DE, KEY_DELAY
+			JR	OSBYTE_0C_1
+
+; OSBYTE 0x0C (FX 12) Set keyboard auto-repeat period
+;
+OSBYTE_0C:		LD	DE, KEY_REPEAT
+OSBYTE_0C_1:		EX	DE, HL		; HL: Pointer to KEY_REPEAT or KEY_DELAY; E: New value
+			LD	D, (HL)		;  D: Old value
+			LD	(HL), E		; Store new value
+			LD	L, D 		; Return old value
+			JP	EVAL.COUNT0
+
+; OSBYTE 0x13 (FX 19): Wait 1/50th of a second
+;
+OSBYTE_13:		HALT	
+			LD	L, 0
+			JP	EVAL.COUNT0
+
+; OSBYTE 0x14 (FX 20,n): Explode/implode user defined character font RAM
+;  L: n
+;
+OSBYTE_14:		LD	A, L
 			CP	7
 			JP	NC, HUH
 			CALL	NEXT_INIT.Reserve_UDG
 			LD	(HIMEM), DE
+			LD	L, 0xFF
+			JP	EVAL.COUNT0
+
+; OSBYTE 0x80 (FX 80, device)
+; ADVAL(device)
+;
+@ADVAL: 		INC	IY			; Skip '('
+			CALL	EXPRI
+			EXX
+			CALL	BRAKET
+;
+OSBYTE_80:		LD	DE, EVAL.COUNT1		; Return address
+			PUSH	DE
+			LD	A, L 
+			SUB	5
+			JR	C, 1F
+			CP	5
+			JR	C, 2F
+1:			LD	HL, 0
+			RET			
+2:			CALL	SWITCH_A
+			DW	ADVAL_MOUSE_MAX_X	; ADVAL(5)
+			DW	ADVAL_MOUSE_MAX_Y	; ADVAL(6)
+			DW	ADVAL_MOUSE_X		; ADVAL(7)
+			DW	ADVAL_MOUSE_Y		; ADVAL(8)
+			DW	ADVAL_MOUSE_CLICK	; ADVAL(9)
+;
+ADVAL_MOUSE_MAX_X:	LD	HL, NEXT_MOUSE.Max_X
+			RET
+;
+ADVAL_MOUSE_MAX_Y:	LD	HL, NEXT_MOUSE.Max_Y
+			RET
+;
+ADVAL_MOUSE_X:		EQU	NEXT_MOUSE.Read_X
+ADVAL_MOUSE_Y:		EQU	NEXT_MOUSE.Read_Y
+;
+ADVAL_MOUSE_CLICK:	CALL	NEXT_MOUSE.Read_Buttons
+			LD	H, 0
+			LD	L, A 
 			RET
 
 ; OSCLI MEMDUMP addr, count
 ; 
 STAR_MEMDUMP		CALL	ASC_TO_NUMBER	; Get start address
 			PUSH	DE 
-			CALL	SKIPSP 
 			CALL	ASC_TO_NUMBER	; Get length in DE
 			POP	HL 		; Get start address in HL
 			JP	NEXT_DEBUG.Memory_Dump
@@ -316,39 +433,7 @@ STAR_MEMDUMP		CALL	ASC_TO_NUMBER	; Get start address
 ; OSCLI TEST
 ; Stick code to test here
 ;
-STAR_TEST:		CALL	ASC_TO_NUMBER
-			PUSH	DE
-			CALL	SKIPSP 
-			CALL	ASC_TO_NUMBER
-			PUSH	DE 
-			CALL	SKIPSP	
-			CALL	ASC_TO_NUMBER
-			POP	BC
-			POP	HL
-			CALL	NEXT_GRAPHICS.Primitive_Line_Horz
-			RET
-;
-			LD	DE, 960
-			LD	HL, 512
-			CALL	NEXT_GRAPHICS.Transform_Coords
-			RET 
-;
-			CALL	ASC_TO_NUMBER	
-			LD	A, E		 
-			PUSH	AF		; Sprite #
-			CALL	SKIPSP 
-			CALL	ASC_TO_NUMBER
-			PUSH	DE 		; X
-			CALL	SKIPSP 
-			CALL	ASC_TO_NUMBER
-			PUSH	DE		; Y
-			CALL	SKIPSP	
-			CALL	ASC_TO_NUMBER
-			LD	C, E 		; Pattern #
-			POP	HL 		; Y 
-			POP	DE 		; X
-			POP	AF		; Sprite #
-			JP	NEXT_SPRITES.Render
+STAR_TEST:		JP	HUH
 
 ; OSCLI TIME
 ; Output current time
@@ -778,12 +863,5 @@ SETOPT:			LD	(OPTVAL), A
 			LD	C, A 		;  C: Volume
 			CALL	NEXT_SOUND.Queue_Note
 			JP	XEQ
-
-; ----------------------------------------------------------------------------
-
-; Stuff not implemented yet
-; There's also more stuff in sorry.z80
-;
-@OSCALL:		RET
 
 			ENDMODULE
