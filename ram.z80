@@ -6,7 +6,7 @@
 ; Author:	(C) Copyright  R.T.Russell 31-12-1983
 ; Modified By:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	12/07/2021
+; Last Updated:	15/07/2021
 ;
 ; Modinfo:
 ; 02/05/2021:	Modified by Dean Belfield to assemble with SJASMPLUS
@@ -24,6 +24,7 @@
 ; 15/06/2021:	Added PLOTORG_X and PLOTORG_Y
 ; 29/06/2021:	Added OPTVAL, FDATA
 ; 12/07/2021:	Added UDG_MASK
+; 15/07/2021:	Added MOUSE, modified KEY variables, removed LX1, LX2, LY1, LY2 temporary variables
 
 			MODULE RAM
 
@@ -109,9 +110,11 @@ Start:			EQU 	$
 @AY_BUF_C:		DEFS	15		; CH C: Queue 5 x [duration, volume, pitch]
 ;
 @FLAGS:			DEFS	1		; Flags: B7=ESC PRESSED, B6=ESC DISABLED, B5=CAPS LOCK, B4=COPY PRESSED, B3=SHOW CURSOR
-@KEYSCAN:		DEFS	2		; Results of last keyscan
-@KEYREPEAT:		DEFS	1		; Key repeat counter
-@KEYCODE:		DEFS	1		; Keycode updated by keyscan
+@KEY_SCAN:		DEFS	2		; Results of last keyscan
+@KEY_COUNT:		DEFS	1		; Key repeat counter
+@KEY_CODE:		DEFS	1		; Keycode updated by keyscan
+@KEY_DELAY:		DEFS	1		; Initial key delay
+@KEY_REPEAT:		DEFS	1		; Key repeat
 @TIME:			DEFS	4	
 @VIDEO_MODE:		DEFS	1		; Video mode
 @TEXT_FOREGROUND:	DEFS 	1		; Text foreground colour (Layer 2) or attribute (ULA)
@@ -151,11 +154,10 @@ Start:			EQU 	$
 @PIXEL_HEIGHT:		DEFS	2
 @OPTVAL:		DEFS	1	
 @UDG_MASK:		DEFS	1		; Exploded UDG mode mask
-;
-@LX1			DEFS	2		; TEMP: TODO REMOVE
-@LY1			DEFS	2
-@LX2			DEFS 	2
-@LY2			DEFS	2
+@MOUSE_DX:		DEFS	1
+@MOUSE_DY:		DEFS	1
+@MOUSE_CX:		DEFS 	2
+@MOUSE_CY:		DEFS	2
 
 Length:			EQU	$ - Start
 
