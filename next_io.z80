@@ -3,7 +3,7 @@
 ;		Spectrum Next I/O Routines
 ; Author:	Dean Belfield
 ; Created:	03/05/2021
-; Last Updated:	12/07/2021
+; Last Updated:	15/07/2021
 ;
 ; Modinfo:
 ; 10/05/2021:	Started implementing VDU engine
@@ -20,6 +20,7 @@
 ; 16/06/2021:	Added VDU_GS (Set graphics origin)
 ; 21/06/2021:	Added VDU_DLE (CLG)
 ; 12/07/2021:	Added VDU_ETB (UDG)
+; 15/07/2021:	Modified Read_Keyboard to use KEY_DELAY and KEY_REPEAT variables in RAM
 
 			MODULE	NEXT_IO
 
@@ -29,21 +30,21 @@
 ;
 Read_Keyboard:		CALL	Keyscan			; Scan the keyboard
 
-			LD	HL, (KEYSCAN)		; Are we stil pressing the same key combo
+			LD	HL, (KEY_SCAN)		; Are we stil pressing the same key combo
 			XOR	A 
 			SBC	HL, DE 	
-			LD	A, CONF_KEYRPT_1	; Initial key repeat value
+			LD	A, (KEY_DELAY)		; Initial key repeat value
 			JR	NZ, 1F			; No, so move onto next check
-			LD	A,(KEYREPEAT)		; Simple key repeat
+			LD	A,(KEY_COUNT)		; Simple key repeat
 			DEC	A 
-			LD	(KEYREPEAT), A
-			LD	A, CONF_KEYRPT_2	; Subsequent key repeat value
+			LD	(KEY_COUNT), A
+			LD	A,(KEY_REPEAT)		; Subsequent key repeat value
 			JR	Z, 1F
 			XOR	A 
 			RET
 
-1:			LD	(KEYREPEAT), A
-			LD	(KEYSCAN), DE 		; Store the new keyscan
+1:			LD	(KEY_COUNT), A
+			LD	(KEY_SCAN), DE 		; Store the new keyscan
 			LD	A, E			; Get the keycode
 			INC	A			; Check for 0xFF
 			RET	Z			; Then no key has been pressed
