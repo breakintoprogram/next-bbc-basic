@@ -2,7 +2,7 @@
 ; Title:	BBC Basic for Spectrum Next - Editor
 ; Author:	Dean Belfield
 ; Created:	18/05/2021
-; Last Updated:	08/06/2021
+; Last Updated:	15/07/2021
 ;
 ; Modinfo:
 ; 19/05/2021:	Added cursor up, cursor down, and copy
@@ -12,6 +12,7 @@
 ; 28/05/2021:	Now uses hardware (sprite) cursor
 ; 31/05/2021:	Fixed various editor bugs
 ; 08/06/2021:	Now uses LTRAP to test for ESC; Renamed module
+; 15/07/2021:	Some KEY variables renamed
 
 			MODULE EDITOR
 
@@ -29,7 +30,7 @@ Edit_Line:		LD	(HL), CR		; Initialise buffer
 			RET	M
 			LD	DE, (CHARPOS_X)		; Update the cursor position
 			LD	(CURSOR_X), DE
-1:			LD 	A, (KEYCODE)		; Wait until we've let go of ESC
+1:			LD 	A, (KEY_CODE)		; Wait until we've let go of ESC
 			CP	0x1B			 
 			JR	Z, 1B
 ;
