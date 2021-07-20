@@ -2,7 +2,7 @@
 ; Title:	BBC Basic for Spectrum Next - Main build file
 ; Author:	Dean Belfield
 ; Created:	02/05/2021
-; Last Updated:	11/06/2021
+; Last Updated:	15/07/2021
 ;
 ; Notes:
 ;
@@ -22,12 +22,13 @@
 ; 04/06/2021:	Added next_sound.z80
 ; 07/06/2021:	Added next_sprites.z80
 ; 11/06/2021:	Added equs.z80
+; 15/07/2021:	Added next_mouse.z80, CONF_OSID
 
 			SLDOPT COMMENT WPMEM, LOGPOINT, ASSERTION
 			
 			DEVICE ZXSPECTRUMNEXT		; sjasmplus directive for SAVESNA at end
 
-			DEFINE BUILD_VERSION "0.15"	; Build version
+			DEFINE BUILD_VERSION "0.16"	; Build version
 ;	
 ; Assembly flags
 ;
@@ -38,8 +39,9 @@ BUILD_OPT		EQU	1			; Set to 1 to use misc.z80 optimisations in R.T.Russell's cod
 ;
 ; Configuration
 ;
-CONF_KEYRPT_1:		EQU	20			; Initial key repeat (50ths of a second)
-CONF_KEYRPT_2:		EQU	5			; Subsequent key repeats (50ths of a second)
+CONF_OSID:		EQU	27			; Provisional OS ID for Spectrum Next
+CONF_KEYRPT_1:		EQU	20			; Default key delay (50ths of a second)
+CONF_KEYRPT_2:		EQU	5			; Default key repeat (50ths of a second)
 ;
 ; Memory map
 ;
@@ -65,6 +67,7 @@ Code_Start		EQU	0x5B00			; Code straight after screen RAM
 			include "next_graphics.z80"	; Bitmap graphics 
 			include "next_dma.z80"		; Spectrum Next DMA routines
 			include "next_rtc.z80"		; Spectrum Next Real Time Clock routines
+			include "next_mouse.z80"	; Spectrum Next Kempston Mouse routines
 			include "next_sound.z80"	; Spectrum Next AY sound chip routines
 			include "next_sprites.z80"	; Spectrum Next Sprite routines
 ;
