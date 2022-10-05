@@ -3,11 +3,11 @@
 ;		Useful EQUs
 ; Author:	Dean Belfield
 ; Created:	11/06/2021
-; Last Updated:	13/06/2021
+; Last Updated:	05/10/2022
 ;
 ; Modinfo:
 ; 13/06/2021:	Added PALETTE control registers
-
+; 05/10/2022:	Added REGISTER control ports
 ;
 ; NEXTREG
 ;
@@ -44,5 +44,15 @@ MMU_SLOT_7		EQU	0x56
 MMU_SLOT_8		EQU	0x57
 L2_CONTROL		EQU	0x70
 MEMORY_MAP_MODE		EQU	0x8F
+
+
+			ENDMODULE
+	
+	
+			MODULE	PORT
+			
+REGISTER_SELECT		EQU	0x243B
+REGISTER_ACCESS		EQU	0x253B
+
 
 			ENDMODULE

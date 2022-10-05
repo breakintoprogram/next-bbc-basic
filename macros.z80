@@ -3,13 +3,14 @@
 ;		Useful macros
 ; Author:	Dean Belfield
 ; Created:	08/05/2021
-; Last Updated:	30/05/2021
+; Last Updated:	05/10/2022
 ;
 ; Modinfo:
 ; 13/05/2021:	Added OPCODE macro for assembler (in exec.z80)
 ; 18/05/2021:	Added CALL_IX and CALL_IY
 ; 25/05/2021:	Added EXEREG and CALLREG to replace CALL_HL, CALL_IX aned CALL_IY
 ; 30/05/2021:	Added CP16, NEG16
+; 05/10/2022:	Added NEXTREGMASK to read nextreg, preserve masked bits and set other bits
 
 		MACRO 	Z80PORT port, value
 		LD	A, value
@@ -59,4 +60,10 @@
 		SBC	A, A 
 		SUB	high rp 
 		LD	high rp, a
+		ENDM
+
+		MACRO	NEXTREGMASK reg, val, mask
+		LD	L, reg			
+		LD DE, mask*256 + val
+		CALL	ReadMaskWrite_NextReg
 		ENDM

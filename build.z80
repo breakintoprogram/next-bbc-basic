@@ -23,6 +23,7 @@
 ; 07/06/2021:	Added next_sprites.z80
 ; 11/06/2021:	Added equs.z80
 ; 15/07/2021:	Added next_mouse.z80, CONF_OSID
+; 05/10/2022:	Preserve 50/60 and scandoubler when setting peripheral 1 bits for joystick
 
 			SLDOPT COMMENT WPMEM, LOGPOINT, ASSERTION
 			
