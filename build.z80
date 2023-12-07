@@ -88,9 +88,9 @@ Code_Start		EQU	0x5B00			; Code straight after screen RAM
 
 			ALIGN 	256			; USER needs to be alignd to a page boundary
 
-@USER:			incbin "tests/mandlebrot.bbc"	; BASIC program to load into memory
+@USER:;			incbin "tests/on_proc.bbc"	; BASIC program to load into memory
 
-	 		SAVENEX OPEN "Z80/BBC Basic/build.nex", Code_Start, Stack_Top
+	 		SAVENEX OPEN "build.nex", Code_Start, Stack_Top
 			SAVENEX CORE 3, 0, 0
 			SAVENEX CFG  7, 0, 0
 			SAVENEX BAR  1, 0xE0, 50, 25
