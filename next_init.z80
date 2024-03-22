@@ -3,7 +3,7 @@
 ;		Spectrum Next Initialisation
 ; Author:	Dean Belfield
 ; Created:	04/05/2021
-; Last Updated:	15/07/2021
+; Last Updated:	05/10/2022
 ;
 ; Modinfo:
 ; 13/05/2021:	Added BUILD_VERSION
@@ -20,6 +20,7 @@
 ; 24/06/2021:	Disabled RAM contention (Peripheral 3)
 ; 12/07/2021:	Added Reserve_UDG
 ; 15/07/2021:	Variables KEY_DELAY and KEY_REPEAT are initialised; Some KEY variables renamed
+; 05/10/2022:	Preserve 50/60 and scandoubler when setting peripheral 1 bits for joystick
 
 			MODULE	NEXT_INIT
 
@@ -27,7 +28,7 @@ System:			DI
 			LD 	SP,Stack_Top			; Stick the stack somewhere safe for now
 
 			NEXTREG	NREG.CONFIG_MAPPING, 0x03		
-			NEXTREG NREG.PERIPHERAL_1, %01110001	; Peripheral 1 settings
+			NEXTREGMASK NREG.PERIPHERAL_1, %01110000, %00000101	; Peripheral 1 settings (joysticks set, 50/60 and scandoubler preserved)
 			NEXTREG NREG.PERIPHERAL_2, %10101000	; Peripheral 2 settings
 			NEXTREG NREG.PERIPHERAL_3, %11011110	; Peripheral 3 settings
 ;			NEXTREG	NREG.PERIPHERAL_4, %00011000	; Peripheral 4 settings
@@ -188,6 +189,20 @@ Initialise_Interrupt:	LD	DE, IM2_Table		; The IM2 vector table (on page boundary
                         LD	(HL), high Interrupt
                         IM	2                       ; Set the interrupt mode
                         RET
+
+;
+; Read NextReg
+;
+ReadMaskWrite_NextReg:								; INPUT: L = NextReg number, D = mask value (bits 1 = preserve)
+													;        E = Set value (bits should be 0 wherever mask is 1)
+			LD BC, PORT.REGISTER_SELECT				; Active port for TBBlue/Next feature configuration (0x243B)
+			OUT (C), L								; Select active port
+			INC B									; Port for reading/writing the selected TBBlue control register (0x253B)
+			IN A, (C)								; Read nextreg
+			AND D									; Mask out everything but the bits to preseve
+			OR  E									; Apply the new bits we want to set or clear
+			NEXTREG NREG.PERIPHERAL_1, A			; Write the combined value back to nextreg
+			RET
 
 			ENDMODULE
 	
